@@ -7,10 +7,9 @@
 #include <sel4/sel4_arch/types.h>
 #include <microkit.h>
 
-
-
 #define MAX_ELF_NAME 32
 #define MAX_SW_BREAKS 10
+#define BUFSIZE 1024
 
 /* Bookkeeping for watchpoints */
 typedef struct watchpoint {
@@ -44,7 +43,8 @@ typedef struct inferior {
 } inferior_t;
 
 typedef enum continue_type {
-    ctype_continue = 0,
+    ctype_dont = 0,
+    ctype_continue,
     ctype_ss,
 } cont_type_t;
 

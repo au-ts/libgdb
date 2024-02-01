@@ -8,115 +8,13 @@
 #include <sel4/constants.h>
 
 //#define DEBUG_PRINTS 1
-#define BUFSIZE 1024
 #define MAX_PDS 64
 #define MAX_ID 255
 #define INITIAL_INFERIOR_POS 0
 
-/* Input buffer */
-static char input[BUFSIZE];
-
-/* Output buffer */
-static char output[BUFSIZE];
-
 int num_threads = 0;
 inferior_t inferiors[MAX_PDS];
 inferior_t *target_inferior = NULL;
-
-static char *gdb_get_packet(void) {
-    char c;
-    int count;
-    /* Checksum and expected checksum */
-    unsigned char cksum, xcksum;
-    char *buf = input;
-    (void) buf;
-
-    while (1) {
-        /* Wait for the start character - ignoring all other characters */
-        while ((c = uart_get_char()) != '$')
-#ifndef DEBUG_PRINTS
-            ;
-#else
-        {
-            uart_put_char(c);
-        }
-        uart_put_char(c);
-#endif
-        retry:
-        /* Initialize cksum variables */
-        cksum = 0;
-        xcksum = -1;
-        count = 0;
-        (void) xcksum;
-
-        /* Read until we see a # or the buffer is full */
-        while (count < BUFSIZE - 1) {
-            c = uart_get_char();
-#ifdef DEBUG_PRINTS
-            uart_put_char(c);
-#endif
-            if (c == '$') {
-                goto retry;
-            } else if (c == '#') {
-                break;
-            }
-            cksum += c;
-            buf[count++] = c;
-        }
-
-        /* Null terminate the string */
-        buf[count] = 0;
-
-#ifdef DEBUG_PRINTS
-        printf("\nThe value of the command so far is %s. The checksum you should enter is %x\n", buf, cksum);
-#endif
-
-        if (c == '#') {
-            c = uart_get_char();
-            xcksum = hexchar_to_int(c) << 4;
-            c = uart_get_char();
-            xcksum += hexchar_to_int(c);
-
-            if (cksum != xcksum) {
-                uart_put_char('-');   /* checksum failed */
-            } else {
-                uart_put_char('+');   /* checksum success, ack*/
-
-                if (buf[2] == ':') {
-                    uart_put_char(buf[0]);
-                    uart_put_char(buf[1]);
-
-                    return &buf[3];
-                }
-
-                return buf;
-            }
-        }
-    }
-
-    return NULL;
-}
-
-/*
- * Send a packet, computing it's checksum, waiting for it's acknoledge.
- * If there is not ack, packet will be resent.
- */
-static void gdb_put_packet(char *buf)
-{
-    uint8_t cksum;
-    for (;;) {
-        uart_put_char('$');
-        for (cksum = 0; *buf; buf++) {
-            cksum += *buf;
-            uart_put_char(*buf);
-        }
-        uart_put_char('#');
-        uart_put_char(int_to_hexchar(cksum >> 4));
-        uart_put_char(int_to_hexchar(cksum % 16));
-        char c = uart_get_char();
-        if (c == '+') break;
-    }
-}
 
 /* Read registers */
 static void handle_read_regs(void) {
@@ -309,7 +207,7 @@ int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vs
     return 0;
 }
 
-int gdb_register_inferior(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace) {
+int gdb_register_inferior_part1(uin8_t id, char* output) {
     /* Must already have one thread that has been registered */
     if (num_threads < 1 || inferiors[INITIAL_INFERIOR_POS].tcb == 0) {
         return -1;
@@ -323,7 +221,6 @@ int gdb_register_inferior(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr v
     uint8_t idx = num_threads++;
     inferiors[idx].id = id;
     inferiors[idx].gdb_id = idx + 1;
-    strlcpy(inferiors[idx].elf_name, elf_name, MAX_ELF_NAME);
 
     /* Indicate that the initial thread has forked */
     inferiors[idx].tcb = inferiors[INITIAL_INFERIOR_POS].tcb;
@@ -331,18 +228,16 @@ int gdb_register_inferior(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr v
     strlcpy(output, "T05fork:p", sizeof(output));
     char *buf = mem2hex((char *) &inferiors[idx].gdb_id, output + strnlen(output, BUFSIZE), sizeof(uint8_t));
     strlcpy(buf, ".1;", BUFSIZE - strnlen(output, BUFSIZE));
-    gdb_put_packet(output);
-    gdb_event_loop();
+    return 0;
+}
 
+int gdb_register_inferior_part2(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output) {
     /* Indicate that the new thread is execing something */
     strlcpy(output, "T05exec:", BUFSIZE);
     buf = mem2hex(elf_name, output + strnlen(output, BUFSIZE), strnlen(elf_name, BUFSIZE - strnlen(output, BUFSIZE)));
     strlcpy(buf, ";", BUFSIZE - strnlen(output, BUFSIZE));
     inferiors[idx].tcb = tcb;
     inferiors[idx].vspace = vspace;
-    gdb_put_packet(output);
-    gdb_event_loop();
-
     return 0;
 }
 
@@ -447,54 +342,48 @@ static void handle_set_inferior(char *ptr) {
 }
 
 
-cont_type_t gdb_event_loop() {
-    char *ptr;
-    int stepping;
+cont_type_t gdb_handle_packet(char *input, char *output) {
+    cont_type_t ctype = ctype_dont;
 
-    while (1) {
-        ptr = gdb_get_packet();
-        output[0] = 0;
-        if (*ptr == 'g') {
-            handle_read_regs();
-        } else if (*ptr == 'G') {
-            handle_write_regs(ptr);
-        } else if (*ptr == 'm') {
-            handle_read_mem(ptr);
-        } else if (*ptr == 'M') {
-            handle_write_mem(ptr);
-        } else if (*ptr == 'c' || *ptr == 's') {
-            stepping = *ptr == 's' ? 1 : 0;
-            ptr++;
+    output[0] = 0;
+    if (*input == 'g') {
+        handle_read_regs();
+    } else if (*input == 'G') {
+        handle_write_regs(input);
+    } else if (*input == 'm') {
+        handle_read_mem(input);
+    } else if (*input == 'M') {
+        handle_write_mem(input);
+    } else if (*input == 'c' || *input == 's') {
+        input++;
 
-            if (stepping) {
-                enable_single_step(target_inferior);
-            } else {
-                disable_single_step(target_inferior);
-            }
-            /* TODO: Support continue from an address and single step */
-
-            break;
-        } else if (*ptr == 'q') {
-            handle_query(ptr);
-        } else if (*ptr == 'H') {
-            handle_set_inferior(ptr);
-        } else if (*ptr == '?') {
-            /* TODO: This should eventually report more reasons than swbreak */
-            strlcpy(output, "T05swbreak:;", sizeof(output));
-        } else if (*ptr == 'v') {
-            if (strncmp(ptr, "vCont?", 7) == 0) {
-                strlcpy(output, "vCont;c", sizeof(output));
-            } else if (strncmp(ptr, "vCont;c", 7) == 0) {
-                break;
-            }
-        } else if (*ptr == 'z' || *ptr == 'Z') {
-            handle_configure_debug_events(ptr);
+        if (stepping) {
+            enable_single_step(target_inferior);
+            ctype = ctype_ss;
+        } else {
+            ctype = ctype_cont;
+            disable_single_step(target_inferior);
         }
-
-        gdb_put_packet(output);
+        /* TODO: Support continue from an address and single step */
+    } else if (*input == 'q') {
+        handle_query(input);
+    } else if (*input == 'H') {
+        handle_set_inferior(input);
+    } else if (*input == '?') {
+        /* TODO: This should eventually report more reasons than swbreak */
+        strlcpy(output, "T05swbreak:;", sizeof(output));
+    } else if (*input == 'v') {
+        if (strncmp(input, "vCont?", 7) == 0) {
+            strlcpy(output, "vCont;c", sizeof(output));
+        } else if (strncmp(input, "vCont;c", 7) == 0) {
+            break;
+        }
+    } else if (*input == 'z' || *input == 'Z') {
+        handle_configure_debug_events(input);
     }
 
-    return stepping;
+
+    return ctype;
 }
 
 static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason) {
