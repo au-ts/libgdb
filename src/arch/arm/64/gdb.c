@@ -1,6 +1,8 @@
 #include <arch/arm/64/gdb.h>
-#include <gdb.h>
 #include <util.h>
+#include <sel4/constants.h>
+#include <gdb.h>
+#include <stddef.h>
 
 /* Software breakpoint related stuff */
 #define AARCH64_BREAK_MON   0xd4200000

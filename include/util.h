@@ -5,6 +5,7 @@
  */
 
 #pragma once
+#include <microkit.h>
 
 static void assert_fail(
     const char  *assertion,
@@ -12,7 +13,8 @@ static void assert_fail(
     unsigned int line,
     const char  *function)
 {
-    printf("Failed assertion '%s' at %s:%u in function %s\n", assertion, file, line, function);
+    // @alwin: what to do about this?
+    // printf("Failed assertion '%s' at %s:%u in function %s\n", assertion, file, line, function);
     while (1) {}
 }
 

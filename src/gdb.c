@@ -6,6 +6,7 @@
 #include <arch/arm/64/gdb.h>
 #include <util.h>
 #include <sel4/constants.h>
+#include <printf.h>
 
 //#define DEBUG_PRINTS 1
 #define MAX_PDS 64
@@ -17,7 +18,7 @@ inferior_t inferiors[MAX_PDS];
 inferior_t *target_inferior = NULL;
 
 /* Read registers */
-static void handle_read_regs(void) {
+static void handle_read_regs(char *output) {
     seL4_UserContext context;
     int error = seL4_TCB_ReadRegisters(target_inferior->tcb, false, 0,
                                        sizeof(seL4_UserContext) / sizeof(seL4_Word), &context);
@@ -25,7 +26,7 @@ static void handle_read_regs(void) {
 }
 
 /* Write registers */
-static void handle_write_regs(char *ptr) {
+static void handle_write_regs(char *ptr, char* output) {
     assert(*ptr++ == 'G');
 
     seL4_UserContext context;
@@ -35,11 +36,11 @@ static void handle_write_regs(char *ptr) {
     strlcpy(output, "OK", sizeof(output));
 }
 
-static void handle_query(char *ptr) {
+static void handle_query(char *ptr, char *output) {
     if (strncmp(ptr, "qSupported", 10) == 0) {
         /* TODO: This may eventually support more features */
         snprintf(output, sizeof(output),
-                 "qSupported:PacketSize=%lx;QThreadEvents+;swbreak+;hwbreak+;vContSupported+;fork-events+;exec-events+;multiprocess+;", sizeof(input));
+                 "qSupported:PacketSize=%lx;QThreadEvents+;swbreak+;hwbreak+;vContSupported+;fork-events+;exec-events+;multiprocess+;", BUFSIZE);
     } else if (strncmp(ptr, "qfThreadInfo", 12) == 0) {
         char *out_ptr = output;
         *out_ptr++ = 'm';
@@ -130,7 +131,7 @@ static bool parse_breakpoint_format(char *ptr, seL4_Word *addr, seL4_Word *kind)
 }
 
 
-static void handle_configure_debug_events(char *ptr) {
+static void handle_configure_debug_events(char *ptr, char *output) {
     /* Precondition: ptr[0] is always 'z' or 'Z' */
     seL4_Word addr, size;
     bool success = false;
@@ -207,7 +208,7 @@ int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vs
     return 0;
 }
 
-int gdb_register_inferior_part1(uin8_t id, char* output) {
+int gdb_register_inferior_part1(uint8_t id, char* output) {
     /* Must already have one thread that has been registered */
     if (num_threads < 1 || inferiors[INITIAL_INFERIOR_POS].tcb == 0) {
         return -1;
@@ -232,16 +233,23 @@ int gdb_register_inferior_part1(uin8_t id, char* output) {
 }
 
 int gdb_register_inferior_part2(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output) {
+    int idx = 0;
+    for (; idx < MAX_PDS; idx++) {
+        if (inferiors[idx].id == id) break;
+    }
+
+    if (idx >= MAX_PDS) return -1;
+
     /* Indicate that the new thread is execing something */
     strlcpy(output, "T05exec:", BUFSIZE);
-    buf = mem2hex(elf_name, output + strnlen(output, BUFSIZE), strnlen(elf_name, BUFSIZE - strnlen(output, BUFSIZE)));
+    char *buf = mem2hex(elf_name, output + strnlen(output, BUFSIZE), strnlen(elf_name, BUFSIZE - strnlen(output, BUFSIZE)));
     strlcpy(buf, ";", BUFSIZE - strnlen(output, BUFSIZE));
     inferiors[idx].tcb = tcb;
     inferiors[idx].vspace = vspace;
     return 0;
 }
 
-static void handle_read_mem(char *ptr) {
+static void handle_read_mem(char *ptr, char *output) {
     seL4_Word addr, size, error;
 
     if (!parse_mem_format(ptr, &addr, &size)) {
@@ -258,13 +266,13 @@ static void handle_read_mem(char *ptr) {
     }
 }
 
-static void handle_write_mem(char *ptr) {
+static void handle_write_mem(char *ptr, char *output) {
     seL4_Word addr, size;
 
     if (!parse_mem_format(ptr, &addr, &size)) {
         strlcpy(output, "E02", sizeof(output));
     } else {
-        if ((ptr = memchr(input, ':', BUFSIZE))) {
+        if ((ptr = memchr(ptr, ':', BUFSIZE))) {
             ptr++;
             if (inf_hex2mem(target_inferior, ptr, addr, size) == 0) {
                 strlcpy(output, "E03", sizeof(output));
@@ -309,7 +317,7 @@ static int parse_thread_id(char *ptr, int *proc_id) {
     return 0;
 }
 
-static void handle_set_inferior(char *ptr) {
+static void handle_set_inferior(char *ptr, char *output) {
     int proc_id = 0;
 
     assert(*ptr++ = 'H');
@@ -341,34 +349,39 @@ static void handle_set_inferior(char *ptr) {
     strlcpy(output, "OK", sizeof(output));
 }
 
+void handle_sig_interrupt() {
+
+}
+
 
 cont_type_t gdb_handle_packet(char *input, char *output) {
     cont_type_t ctype = ctype_dont;
 
     output[0] = 0;
     if (*input == 'g') {
-        handle_read_regs();
+        handle_read_regs(output);
     } else if (*input == 'G') {
-        handle_write_regs(input);
+        handle_write_regs(input, output);
     } else if (*input == 'm') {
-        handle_read_mem(input);
+        handle_read_mem(input, output);
     } else if (*input == 'M') {
-        handle_write_mem(input);
+        handle_write_mem(input, output);
     } else if (*input == 'c' || *input == 's') {
+        int stepping = *input == 's' ? 1 : 0;
         input++;
 
         if (stepping) {
             enable_single_step(target_inferior);
             ctype = ctype_ss;
         } else {
-            ctype = ctype_cont;
+            ctype = ctype_continue;
             disable_single_step(target_inferior);
         }
         /* TODO: Support continue from an address and single step */
     } else if (*input == 'q') {
-        handle_query(input);
+        handle_query(input, output);
     } else if (*input == 'H') {
-        handle_set_inferior(input);
+        handle_set_inferior(input, output);
     } else if (*input == '?') {
         /* TODO: This should eventually report more reasons than swbreak */
         strlcpy(output, "T05swbreak:;", sizeof(output));
@@ -376,17 +389,20 @@ cont_type_t gdb_handle_packet(char *input, char *output) {
         if (strncmp(input, "vCont?", 7) == 0) {
             strlcpy(output, "vCont;c", sizeof(output));
         } else if (strncmp(input, "vCont;c", 7) == 0) {
-            break;
+            /* DO NOTHING CASE */
         }
     } else if (*input == 'z' || *input == 'Z') {
-        handle_configure_debug_events(input);
+        handle_configure_debug_events(input, output);
+    } else if (*input == 3) {
+        /* In case the ctrl-C character was entered */
+        handle_sig_interrupt();
     }
 
 
     return ctype;
 }
 
-static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason) {
+static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason, char *output) {
     strlcpy(output, "T05thread:p", sizeof(output));
 
     // @alwin: is this really necessary?
@@ -404,12 +420,12 @@ static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason) {
         strlcpy(ptr, ".1;hwbreak:;", sizeof(output));
     }
 
-    gdb_put_packet(output);
+    // gdb_put_packet(output);
 
     return (reason == seL4_SingleStep);
 }
 
-static void handle_watchpoint_exception(uint8_t id, seL4_Word bp_num, seL4_Word trigger_address) {
+static void handle_watchpoint_exception(uint8_t id, seL4_Word bp_num, seL4_Word trigger_address, char *output) {
     strlcpy(output, "T05thread:p", sizeof(output));
 
     // @alwin: is this really necessary?
@@ -437,10 +453,10 @@ static void handle_watchpoint_exception(uint8_t id, seL4_Word bp_num, seL4_Word 
     seL4_Word vaddr_be = arch_to_big_endian(trigger_address);
     ptr = mem2hex((char *) &vaddr_be, output + strnlen(output, sizeof(output)), sizeof(seL4_Word));
     strlcpy(ptr, ";", sizeof(output));
-    gdb_put_packet(output);
+    // gdb_put_packet(output);
 }
 
-static bool handle_debug_exception(uint8_t id, seL4_Word *reply_mr) {
+static bool handle_debug_exception(uint8_t id, seL4_Word *reply_mr, char *output) {
     seL4_Word reason = seL4_GetMR(seL4_DebugException_ExceptionReason);
     seL4_Word fault_ip = seL4_GetMR(seL4_DebugException_FaultIP);
     seL4_Word trigger_address = seL4_GetMR(seL4_DebugException_TriggerAddress);
@@ -451,10 +467,10 @@ static bool handle_debug_exception(uint8_t id, seL4_Word *reply_mr) {
         case seL4_InstructionBreakpoint:
         case seL4_SingleStep:
         case seL4_SoftwareBreakRequest:
-            single_step_reply = handle_ss_hwbreak_swbreak_exception(id, reason);
+            single_step_reply = handle_ss_hwbreak_swbreak_exception(id, reason, output);
             break;
         case seL4_DataBreakpoint:
-            handle_watchpoint_exception(id, bp_num, trigger_address);
+            handle_watchpoint_exception(id, bp_num, trigger_address, output);
             break;
     }
 
@@ -478,9 +494,9 @@ static void handle_fault(uint8_t id, seL4_Word exception_reason) {
     // #@alwin: we should probably notify gdb that a fault occured so they can debug the thread
 }
 
-int gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr) {
+int gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output) {
     if (exception_reason  == seL4_Fault_DebugException) {
-        return handle_debug_exception(id, reply_mr);
+        return handle_debug_exception(id, reply_mr, output);
     } else {
         handle_fault(id, exception_reason);
     }

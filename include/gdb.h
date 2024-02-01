@@ -3,9 +3,9 @@
 //
 #pragma once
 
-#include <uart.h>
-#include <sel4/sel4_arch/types.h>
+// @alwin: Ideally this shouldn't depend on microkit
 #include <microkit.h>
+#include <sel4/sel4_arch/types.h>
 
 #define MAX_ELF_NAME 32
 #define MAX_SW_BREAKS 10
@@ -73,7 +73,7 @@ seL4_Word inf_hex2mem(inferior_t *inferior, char *buf, seL4_Word mem, int size);
 
 int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vspace);
 int gdb_register_inferior(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace);
-int gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr);
+int gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
 
 cont_type_t gdb_event_loop();
 

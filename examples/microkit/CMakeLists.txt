@@ -2,17 +2,17 @@ cmake_minimum_required(VERSION 3.26)
 
 set(CMAKE_SYSTEM_NAME Generic)
 
-if (NOT DEFINED ${MICROKIT_SDK})
-    message(FATAL_ERROR "${MICROKIT_SDK} is not set")
-endif (NOT DEFINED ${MICROKIT_SDK})
+if (NOT DEFINED MICROKIT_SDK)
+    message(FATAL_ERROR "MICROKIT_SDK is not set")
+endif (NOT DEFINED MICROKIT_SDK)
 
-if (NOT DEFINED ${BOARD})
-    message(FATAL_ERROR "${BOARD} is not set}")
-endif (NOT DEFINED ${BOARD})
+if (NOT DEFINED BOARD)
+    message(FATAL_ERROR "BOARD is not set}")
+endif (NOT DEFINED BOARD)
 
-if (NOT DEFINED %{CPU})
-   message(FATAL_ERROR "${CPU} is not set}")
-endif (NOT DEFINED %{CPU})
+if (NOT DEFINED CPU)
+   message(FATAL_ERROR "CPU is not set}")
+endif (NOT DEFINED CPU)
 
 # Microkit setup
 set(MICROKIT_CONFIG debug)
@@ -36,7 +36,7 @@ link_directories(${BOARD_DIR}/lib)
 add_library(microkit STATIC IMPORTED)
 set_target_properties(microkit PROPERTIES IMPORTED_LOCATION ${BOARD_DIR}/lib/libmicrokit.a)
 
-add_subdirectory(../../)
+add_subdirectory(../../ lib/gdb/)
 
 add_subdirectory(apps/ping)
 add_subdirectory(apps/pong)
