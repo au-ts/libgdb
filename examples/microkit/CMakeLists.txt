@@ -38,6 +38,8 @@ set_target_properties(microkit PROPERTIES IMPORTED_LOCATION ${BOARD_DIR}/lib/lib
 
 add_subdirectory(../../ lib/gdb/)
 
+add_subdirectory(lib/libco)
+
 add_subdirectory(apps/ping)
 add_subdirectory(apps/pong)
 add_subdirectory(apps/debugger)

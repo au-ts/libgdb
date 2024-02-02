@@ -72,8 +72,9 @@ char *inf_mem2hex(inferior_t *inferior, seL4_Word mem, char *buf, int size, seL4
 seL4_Word inf_hex2mem(inferior_t *inferior, char *buf, seL4_Word mem, int size);
 
 int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vspace);
-int gdb_register_inferior(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace);
+int gdb_register_inferior_fork(uint8_t id, char *output);
+int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
 int gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
 
-cont_type_t gdb_event_loop();
+cont_type_t gdb_handle_packet(char *input, char *output);
 

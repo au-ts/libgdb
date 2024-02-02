@@ -208,7 +208,7 @@ int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vs
     return 0;
 }
 
-int gdb_register_inferior_part1(uint8_t id, char* output) {
+int gdb_register_inferior_fork(uint8_t id, char* output) {
     /* Must already have one thread that has been registered */
     if (num_threads < 1 || inferiors[INITIAL_INFERIOR_POS].tcb == 0) {
         return -1;
@@ -232,7 +232,7 @@ int gdb_register_inferior_part1(uint8_t id, char* output) {
     return 0;
 }
 
-int gdb_register_inferior_part2(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output) {
+int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output) {
     int idx = 0;
     for (; idx < MAX_PDS; idx++) {
         if (inferiors[idx].id == id) break;
@@ -462,30 +462,32 @@ static bool handle_debug_exception(uint8_t id, seL4_Word *reply_mr, char *output
     seL4_Word trigger_address = seL4_GetMR(seL4_DebugException_TriggerAddress);
     seL4_Word bp_num = seL4_GetMR(seL4_DebugException_BreakpointNumber);
 
-    bool single_step_reply = false;
+    // bool single_step_reply = false;
     switch (reason) {
         case seL4_InstructionBreakpoint:
         case seL4_SingleStep:
         case seL4_SoftwareBreakRequest:
-            single_step_reply = handle_ss_hwbreak_swbreak_exception(id, reason, output);
+            // single_step_reply = 
+            handle_ss_hwbreak_swbreak_exception(id, reason, output);
             break;
         case seL4_DataBreakpoint:
             handle_watchpoint_exception(id, bp_num, trigger_address, output);
             break;
     }
 
-    cont_type_t cont_type = gdb_event_loop();
+    // @alwin: wat do
+    // cont_type_t cont_type = gdb_event_loop();
 
-    if (single_step_reply) {
-        if (cont_type == ctype_ss) {
-            // @alwin: multi-instruction stepping?
-            *reply_mr = 1;
-        } else {
-            *reply_mr = 0;
-        }
+    // if (single_step_reply) {
+    //     if (cont_type == ctype_ss) {
+    //         // @alwin: multi-instruction stepping?
+    //         *reply_mr = 1;
+    //     } else {
+    //         *reply_mr = 0;
+    //     }
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
     return 0;
 }
