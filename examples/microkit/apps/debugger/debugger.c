@@ -4,12 +4,13 @@
 #include <util.h>
 #include <libco.h>
 #include <stddef.h>
-
-
+#include <serial/util.h>
+#include <serial/shared_ringbuffer.h>
 
 typedef enum event_state {
     eventState_none = 0,
-    eventState_waitingForInput
+    eventState_waitingForInputEventLoop,
+    eventState_waitingForInputFault
 } event_state_t;
 
 typedef enum phase {
@@ -18,13 +19,14 @@ typedef enum phase {
     phase_standard_event_loop
 } phase_t;
 
-cothread_t t_event, t_main;
+cothread_t t_event, t_main, t_fault;
 
 #define STACK_SIZE 4096
 static char t_main_stack[STACK_SIZE];
+static char t_fault_stack[STACK_SIZE];
 
-// @alwinL this is kind of a placeholder
-#define UART_CONN 0
+#define PRINT_CHANNEL 9
+#define GETCHAR_CHANNEL 11
 
 /* Input buffer */
 static char input[BUFSIZE];
@@ -32,36 +34,122 @@ static char input[BUFSIZE];
 /* Output buffer */
 static char output[BUFSIZE];
 
+uintptr_t rx_free;
+uintptr_t rx_used;
+uintptr_t tx_free;
+uintptr_t tx_used;
+
+uintptr_t rx_data;
+uintptr_t tx_data;
+
+ring_handle_t rx_ring;
+ring_handle_t tx_ring;
+
 /* The current event state and phase */
 event_state_t state = eventState_none;
 phase_t phase = phase_init;
 
-char get_char() {
-    assert(state == eventState_none);
+// void put_char(char c) {
+//     assert(state == eventState_none);
 
-    state = eventState_waitingForInput;
-    microkit_notify(UART_CONN);
-    co_switch(t_event);
+//     ((char *)tx_buffer)[0] = c;
 
-    /* Read the character that was returned and return it */
+//     microkit_notify(UART_CHANNEL);
 
-    return 'a';
-}
+//     /* Maybe a co-switch if we need to wait for something here? idk? */
+// }
+
+// char get_char() {
+    // return 0;
+    // assert(state == eventState_none);
+
+    // state = eventState_waitingForInput;
+    // // microkit_notify(UART_CHANNEL);
+    // co_switch(t_event);
+
+    // /* Read the character that was returned and return it */
+    // return ((char *)rx_buffer) [0];
+// }
+
+// void puts(char *s) {
+
+// }
 
 void _putchar(char character) {
     microkit_dbg_putc(character);
 }
 
-void put_char(char c) {
-    assert(state == eventState_none);
+// @alwin: I think this could be made cleaner with less copying if we just pass in one of these buffers as the output ptr all the time.
+void gdb_puts(char *str) {
+    uintptr_t buffer = 0;
+    unsigned int buffer_len = 0;
+    void *cookie = 0;
 
-    microkit_notify(UART_CONN);
+    int err = dequeue_free(&tx_ring, &buffer, &buffer_len, &cookie);
+    if (err) {
+        microkit_dbg_puts("Unable to dq from tx free ring");
+        return;
+    }
 
-    /* Maybe a co-switch if we need to wait for something here? idk? */
+    int print_len = strnlen(str, BUFSIZE) + 1;
+    if (print_len > BUFFER_SIZE) {
+        microkit_dbg_puts("String too long\n");
+        return;
+    }
+
+    memcpy((char *) buffer, str, print_len);
+
+    bool is_empty = ring_empty(tx_ring.used_ring);
+    err = enqueue_used(&tx_ring, buffer, print_len, cookie);
+    if (err) {
+        microkit_dbg_puts("Unable to enq to tx used ring");
+    }
+
+    if (is_empty) {
+        microkit_notify(PRINT_CHANNEL);
+    }
+
+    return;
 }
 
+void gdb_put_char(char c) {
+    char tmp[2] = {c, 0};
+    gdb_puts(tmp);
+}
 
-char *get_packet() {
+char gdb_get_char(event_state_t new_state) {
+    microkit_notify(GETCHAR_CHANNEL);
+
+    uintptr_t buffer = 0;
+    unsigned int buffer_len = 0;
+    void *cookie = 0;
+
+    // @alwin: check dis
+    // assert(state == eventState_none);
+    state = new_state;
+
+    // Wait for the mxu to tell us some input has come through
+    co_switch(t_event);
+
+    // microkit_dbg_puts("made it here!!!\n");
+
+    int err = dequeue_used(&rx_ring, &buffer, &buffer_len, &cookie);
+    if (err) {
+        microkit_dbg_puts("Failed to get buffer in gdb_get_char()\n");
+        return -1;
+    }
+
+    char c = ((char *) buffer)[0];
+
+    err = enqueue_free(&rx_ring, buffer, buffer_len, NULL);
+    if (err) {
+        microkit_dbg_puts("Failed to put used buffer back into free ring\n");
+    }
+
+    return c;
+}
+
+char *get_packet(event_state_t new_state) {
     char c;
     int count;
     /* Checksum and expected checksum */
@@ -71,18 +159,18 @@ char *get_packet() {
 
     while (1) {
         /* Wait for the start character - ignoring all other characters */
-
-        c = get_char();
+        c = gdb_get_char(new_state);
         while (c != '$') {
             /* Ctrl-C character - should result in an interrupt */
             if (c == 3) {
                 buf[0] = c;
                 break;
             }
-            c = get_char();
+            c = gdb_get_char(new_state);
+            // microkit_dbg_putc(c);
         }
-        while ((c = get_char()) != '$')
-            ;
+        // while ((c = gdb_get_char()) != '$')
+            // ;
         retry:
         /* Initialize cksum variables */
         cksum = 0;
@@ -92,7 +180,7 @@ char *get_packet() {
 
         /* Read until we see a # or the buffer is full */
         while (count < BUFSIZE - 1) {
-            c = get_char();
+            c = gdb_get_char(new_state);
             if (c == '$') {
                 goto retry;
             } else if (c == '#') {
@@ -106,19 +194,19 @@ char *get_packet() {
         buf[count] = 0;
 
         if (c == '#') {
-            c = get_char();
+            c = gdb_get_char(new_state);
             xcksum = hexchar_to_int(c) << 4;
-            c = get_char();
+            c = gdb_get_char(new_state);
             xcksum += hexchar_to_int(c);
 
             if (cksum != xcksum) {
-                put_char('-');   /* checksum failed */
+                gdb_put_char('-');   /* checksum failed */
             } else {
-                put_char('+');   /* checksum success, ack*/
+                gdb_put_char('+');   /* checksum success, ack*/
 
                 if (buf[2] == ':') {
-                    put_char(buf[0]);
-                    put_char(buf[1]);
+                    gdb_put_char(buf[0]);
+                    gdb_put_char(buf[1]);
 
                     return &buf[3];
                 }
@@ -135,19 +223,20 @@ char *get_packet() {
  * Send a packet, computing it's checksum, waiting for it's acknoledge.
  * If there is not ack, packet will be resent.
  */
-static void put_packet(char *buf)
+static void put_packet(char *buf, event_state_t new_state)
 {
     uint8_t cksum;
     for (;;) {
-        put_char('$');
+        gdb_put_char('$');
         for (cksum = 0; *buf; buf++) {
             cksum += *buf;
-            put_char(*buf);
+            gdb_put_char(*buf);
         }
-        put_char('#');
-        put_char(int_to_hexchar(cksum >> 4));
-        put_char(int_to_hexchar(cksum % 16));
-        char c = get_char();
+        gdb_put_char('#');
+        gdb_put_char(int_to_hexchar(cksum >> 4));
+        gdb_put_char(int_to_hexchar(cksum % 16));
+        microkit_dbg_puts("made it here 1!!!\n");
+        char c = gdb_get_char(new_state);
         if (c == '+') break;
     }
 }
@@ -155,13 +244,42 @@ static void put_packet(char *buf)
 static void event_loop();
 static void init_phase2();
 
+
+
+
+void suspend_system() {
+    // @alwin: this should be less hardcoded
+    for (int i = 0; i < 2; i++) {
+        seL4_TCB_Suspend(BASE_TCB_CAP + i);
+    }
+}
+
+void resume_system() {
+    for (int i = 0; i < 2; i++) {
+        seL4_TCB_Resume(BASE_TCB_CAP + i);
+    }
+}
+
+
 static void event_loop() {
     cont_type_t ctype = ctype_dont;
     while (ctype == ctype_dont || phase == phase_standard_event_loop) {
-        char *input = get_packet();
+        // puts("wtf2\n");
+        char *input = get_packet(eventState_waitingForInputEventLoop);
+        /* @alwin: If it's a Ctrl-C packet - is here right? */
+        if (input[0] == 3) {
+            suspend_system();
+        }
         ctype = gdb_handle_packet(input, output);
-        put_packet(output);
+        // puts(output);
+        put_packet(output, eventState_waitingForInputEventLoop);
+        if (ctype != ctype_dont && phase == phase_standard_event_loop) {
+            resume_system();
+            // puts("wtf1\n");
+        }
     }
+
+
 
     if (phase == phase_init) {
         init_phase2();
@@ -174,20 +292,50 @@ static void init_phase2() {
     /* Register any remaining protection domains */
     phase = phase_init_p2;
     gdb_register_inferior_fork(1, output);
-    put_packet(output);
+    put_packet(output, eventState_waitingForInputEventLoop);
 
     event_loop(phase_init_p2);
 
     gdb_register_inferior_exec(1, "pong.elf", BASE_TCB_CAP + 1, BASE_VSPACE_CAP + 1, output);
-    put_packet(output);
+    put_packet(output, eventState_waitingForInputEventLoop);
 
     /* When you have more PDs, keep doing the above pattern for all of them. Do the below call as the last event_loop() */
     phase = phase_standard_event_loop;
     event_loop();
 }
 
+
 void init() {
     /* Register the first protection domain */
+
+    /* Set up sDDF ring buffers */
+
+    /* Setup rx ring buffers */
+    ring_init(&rx_ring, (ring_buffer_t *) rx_free, (ring_buffer_t *) rx_used, 0, 512, 512);
+
+    /* Add buffers to the rx ring */
+    for (int i = 0; i < NUM_BUFFERS - 1; i++) {
+        int err = enqueue_free(&rx_ring, rx_data + (i * BUFFER_SIZE), BUFFER_SIZE, NULL);
+
+        if (err) {
+            microkit_dbg_puts("Failed to setup rx ring buffers\n");
+        }
+    }
+
+    /* Setup tx ring buffers */
+    ring_init(&tx_ring, (ring_buffer_t *) tx_free, (ring_buffer_t *) tx_used, 0, 512, 512);
+
+    /* Add buffers to the tx ring */
+    for (int i = 0; i < NUM_BUFFERS - 1; i++) {
+        int err = enqueue_free(&tx_ring, tx_data + (i * BUFFER_SIZE), BUFFER_SIZE, NULL);
+
+        if (err) {
+            microkit_dbg_puts("Failed to setup tx ring buffers\n");
+        }
+    }
+
+    suspend_system();
+
     if (gdb_register_initial(0, "ping.elf", BASE_TCB_CAP, BASE_VSPACE_CAP)) {
         return;
     }
@@ -199,24 +347,41 @@ void init() {
     co_switch(t_main);
 }
 
+
+void fault_message() {
+    put_packet(output, eventState_waitingForInputFault);
+    // Go back to waiting for normal input
+    state = eventState_waitingForInputEventLoop;
+    co_switch(t_event);
+}
+
 void fault(microkit_channel ch, microkit_msginfo msginfo) {
     seL4_Word reply_mr = 0;
-    int n_reply = gdb_handle_fault(ch, microkit_msginfo_get_label(msginfo), &reply_mr, output);
+    // puts("hello\n");
 
-    co_switch(t_main);
+    suspend_system();
 
-    if (n_reply >= 0) {
-        if (n_reply == 1) {
-            microkit_mr_set(0, reply_mr);
-        }
-        microkit_fault_reply(microkit_msginfo_new(0, n_reply));
+    bool reply = gdb_handle_fault(ch, microkit_msginfo_get_label(msginfo), &reply_mr, output);
+
+    t_event = co_active();
+    t_fault = co_derive((void *) t_fault_stack, STACK_SIZE, fault_message);
+    co_switch(t_fault);
+
+    if (reply) {
+        microkit_fault_reply(microkit_msginfo_new(0, 0));
     }
 }
 
 void notified(microkit_channel ch) {
-    if (state == eventState_waitingForInput) {
+    if (state == eventState_waitingForInputEventLoop) {
         state = eventState_none;
         co_switch(t_main);
+    } else if (state == eventState_waitingForInputFault) {
+        state = eventState_none;
+        co_switch(t_fault);
     }
-    // @alwin: when the user enters ctrl-c in GDB, the ctrl-c character (ascii 3) is sent through UART. We should capture this and enter the event loop
+
+    // microkit_dbg_puts("hello there\n");
+
+    // puts("should be in the event loop now?\n");
 }

@@ -211,18 +211,20 @@ bool unset_hardware_watchpoint(inferior_t *inferior, seL4_Word address,
 }
 
 bool enable_single_step(inferior_t *inferior) {
-    if (inferior->ss_enabled) {
-        return false;
-    }
+    // @alwin: Remove this check so we can override a thread we already replied to. Is this safe?
+    // if (inferior->ss_enabled) {
+    //     return false;
+    // }
 
     seL4_TCB_ConfigureSingleStepping(inferior->tcb, 0, 1);
     return true;
 }
 
 bool disable_single_step(inferior_t *inferior) {
-    if (!inferior->ss_enabled) {
-        return false;
-    }
+    // @alwin: Remove this check so we can override a thread we already replied to. Is this safe?
+    // if (!inferior->ss_enabled) {
+    //     return false;
+    // }
 
     seL4_TCB_ConfigureSingleStepping(inferior->tcb, 0, 0);
     return true;

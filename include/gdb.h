@@ -9,6 +9,8 @@
 
 #define MAX_ELF_NAME 32
 #define MAX_SW_BREAKS 10
+
+// @alwin: All the output strclpy things use this #define. This is quite likely a bad design choice.
 #define BUFSIZE 1024
 
 /* Bookkeeping for watchpoints */
@@ -74,7 +76,7 @@ seL4_Word inf_hex2mem(inferior_t *inferior, char *buf, seL4_Word mem, int size);
 int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vspace);
 int gdb_register_inferior_fork(uint8_t id, char *output);
 int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
-int gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
+bool gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
 
 cont_type_t gdb_handle_packet(char *input, char *output);
 

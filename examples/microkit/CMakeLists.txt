@@ -39,13 +39,17 @@ set_target_properties(microkit PROPERTIES IMPORTED_LOCATION ${BOARD_DIR}/lib/lib
 add_subdirectory(../../ lib/gdb/)
 
 add_subdirectory(lib/libco)
+add_subdirectory(lib/sddf)
 
 add_subdirectory(apps/ping)
 add_subdirectory(apps/pong)
 add_subdirectory(apps/debugger)
+add_subdirectory(apps/uart)
+add_subdirectory(apps/mux_rx)
+add_subdirectory(apps/mux_tx)
 
 add_custom_target(image ALL
                    COMMAND ${MICROKIT_TOOL} ${CMAKE_SOURCE_DIR}/example.system --search-path ${EXECUTABLE_OUTPUT_PATH}
                             --board ${BOARD} --config ${MICROKIT_CONFIG} -o ${IMAGE_FILE} -r ${REPORT_FILE}
-                   DEPENDS ping.elf pong.elf debugger.elf
+                   DEPENDS ping.elf pong.elf debugger.elf uart.elf mux_rx.elf mux_tx.elf
 )

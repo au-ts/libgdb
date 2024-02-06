@@ -33,13 +33,13 @@ static void handle_write_regs(char *ptr, char* output) {
     hex2regs(&context, ptr);
     int error = seL4_TCB_WriteRegisters(target_inferior->tcb, false, 0,
                                         sizeof(seL4_UserContext) / sizeof(seL4_Word), &context);
-    strlcpy(output, "OK", sizeof(output));
+    strlcpy(output, "OK", BUFSIZE);
 }
 
 static void handle_query(char *ptr, char *output) {
     if (strncmp(ptr, "qSupported", 10) == 0) {
         /* TODO: This may eventually support more features */
-        snprintf(output, sizeof(output),
+        snprintf(output, BUFSIZE,
                  "qSupported:PacketSize=%lx;QThreadEvents+;swbreak+;hwbreak+;vContSupported+;fork-events+;exec-events+;multiprocess+;", BUFSIZE);
     } else if (strncmp(ptr, "qfThreadInfo", 12) == 0) {
         char *out_ptr = output;
@@ -59,16 +59,16 @@ static void handle_query(char *ptr, char *output) {
             }
         }
     } else if (strncmp(ptr, "qsThreadInfo", 12) == 0) {
-        strlcpy(output, "l", sizeof(output));
+        strlcpy(output, "l", BUFSIZE);
     } else if (strncmp(ptr, "qC", 2) == 0) {
-        strlcpy(output, "QCp1.1", sizeof(output));
+        strlcpy(output, "QCp1.1", BUFSIZE);
     } else if (strncmp(ptr, "qSymbol", 7) == 0) {
-        strlcpy(output, "OK", sizeof(output));
+        strlcpy(output, "OK", BUFSIZE);
     } else if (strncmp(ptr, "qTStatus", 8) == 0) {
         /* TODO: THis should eventually work in the non startup case */
-        strlcpy(output, "T0", sizeof(output));
+        strlcpy(output, "T0", BUFSIZE);
     } else if (strncmp(ptr, "qAttached", 9) == 0) {
-        strlcpy(output, "1", sizeof(output));
+        strlcpy(output, "1", BUFSIZE);
     }
 }
 
@@ -137,7 +137,7 @@ static void handle_configure_debug_events(char *ptr, char *output) {
     bool success = false;
 
     if (!parse_breakpoint_format(ptr, &addr, &size)) {
-        strlcpy(output, "E01", sizeof(output));
+        strlcpy(output, "E01", BUFSIZE);
         return;
     }
 
@@ -168,7 +168,7 @@ static void handle_configure_debug_events(char *ptr, char *output) {
                 watchpoint_type = seL4_BreakOnReadWrite;
                 break;
             default:
-                strlcpy(output, "E01", sizeof(output));
+                strlcpy(output, "E01", BUFSIZE);
                 return;
         }
 
@@ -180,9 +180,9 @@ static void handle_configure_debug_events(char *ptr, char *output) {
     }
 
     if (!success) {
-        strlcpy(output, "E01", sizeof(output));
+        strlcpy(output, "E01", BUFSIZE);
     } else {
-        strlcpy(output, "OK", sizeof(output));
+        strlcpy(output, "OK", BUFSIZE);
     }
 }
 
@@ -226,7 +226,7 @@ int gdb_register_inferior_fork(uint8_t id, char* output) {
     /* Indicate that the initial thread has forked */
     inferiors[idx].tcb = inferiors[INITIAL_INFERIOR_POS].tcb;
     inferiors[idx].vspace = inferiors[INITIAL_INFERIOR_POS].vspace;
-    strlcpy(output, "T05fork:p", sizeof(output));
+    strlcpy(output, "T05fork:p", BUFSIZE);
     char *buf = mem2hex((char *) &inferiors[idx].gdb_id, output + strnlen(output, BUFSIZE), sizeof(uint8_t));
     strlcpy(buf, ".1;", BUFSIZE - strnlen(output, BUFSIZE));
     return 0;
@@ -254,14 +254,14 @@ static void handle_read_mem(char *ptr, char *output) {
 
     if (!parse_mem_format(ptr, &addr, &size)) {
         /* Error parsing input */
-        strlcpy(output, "E01", sizeof(output));
-    } else if (size * 2 > sizeof(output) - 1) {
+        strlcpy(output, "E01", BUFSIZE);
+    } else if (size * 2 > BUFSIZE - 1) {
         /* Buffer too small? Don't really get this */
-        strlcpy(output, "E01", sizeof(output));
+        strlcpy(output, "E01", BUFSIZE);
     } else {
         if (inf_mem2hex(target_inferior, addr, output, size, &error) == NULL) {
             /* Failed to read the memory at the location */
-           strlcpy(output, "E04", sizeof(output));
+           strlcpy(output, "E04", BUFSIZE);
         }
     }
 }
@@ -270,14 +270,14 @@ static void handle_write_mem(char *ptr, char *output) {
     seL4_Word addr, size;
 
     if (!parse_mem_format(ptr, &addr, &size)) {
-        strlcpy(output, "E02", sizeof(output));
+        strlcpy(output, "E02", BUFSIZE);
     } else {
         if ((ptr = memchr(ptr, ':', BUFSIZE))) {
             ptr++;
             if (inf_hex2mem(target_inferior, ptr, addr, size) == 0) {
-                strlcpy(output, "E03", sizeof(output));
+                strlcpy(output, "E03", BUFSIZE);
             } else {
-                strlcpy(output, "OK", sizeof(output));
+                strlcpy(output, "OK", BUFSIZE);
             }
         }
     }
@@ -323,13 +323,13 @@ static void handle_set_inferior(char *ptr, char *output) {
     assert(*ptr++ = 'H');
 
     if (*ptr != 'g' && *ptr != 'c') {
-        strlcpy(output, "E01", sizeof(output));
+        strlcpy(output, "E01", BUFSIZE);
         return;
     }
     ptr++;
 
     if (parse_thread_id(ptr, &proc_id) == -1) {
-        strlcpy(output, "E01", sizeof(output));
+        strlcpy(output, "E02", BUFSIZE);
         return;
     }
 
@@ -346,7 +346,7 @@ static void handle_set_inferior(char *ptr, char *output) {
         (void) proc_id;
     }
 
-    strlcpy(output, "OK", sizeof(output));
+    strlcpy(output, "OK", BUFSIZE);
 }
 
 void handle_sig_interrupt() {
@@ -384,10 +384,10 @@ cont_type_t gdb_handle_packet(char *input, char *output) {
         handle_set_inferior(input, output);
     } else if (*input == '?') {
         /* TODO: This should eventually report more reasons than swbreak */
-        strlcpy(output, "T05swbreak:;", sizeof(output));
+        strlcpy(output, "T05swbreak:;", BUFSIZE);
     } else if (*input == 'v') {
         if (strncmp(input, "vCont?", 7) == 0) {
-            strlcpy(output, "vCont;c", sizeof(output));
+            strlcpy(output, "vCont;c", BUFSIZE);
         } else if (strncmp(input, "vCont;c", 7) == 0) {
             /* DO NOTHING CASE */
         }
@@ -403,7 +403,7 @@ cont_type_t gdb_handle_packet(char *input, char *output) {
 }
 
 static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason, char *output) {
-    strlcpy(output, "T05thread:p", sizeof(output));
+    strlcpy(output, "T05thread:p", BUFSIZE);
 
     // @alwin: is this really necessary?
     uint8_t i = 0;
@@ -413,11 +413,11 @@ static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason, ch
 
     assert(i != MAX_PDS);
     /* @alwin: This is ugly, fix it */
-    char *ptr = mem2hex((char *) &inferiors[i].gdb_id, output + strnlen(output, sizeof(output)), sizeof(uint8_t));
+    char *ptr = mem2hex((char *) &inferiors[i].gdb_id, output + strnlen(output, BUFSIZE), sizeof(uint8_t));
     if (reason == seL4_SoftwareBreakRequest) {
-        strlcpy(ptr, ".1;swbreak:;", sizeof(output));
+        strlcpy(ptr, ".1;swbreak:;", BUFSIZE);
     } else {
-        strlcpy(ptr, ".1;hwbreak:;", sizeof(output));
+        strlcpy(ptr, ".1;hwbreak:;", BUFSIZE);
     }
 
     // gdb_put_packet(output);
@@ -426,7 +426,7 @@ static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason, ch
 }
 
 static void handle_watchpoint_exception(uint8_t id, seL4_Word bp_num, seL4_Word trigger_address, char *output) {
-    strlcpy(output, "T05thread:p", sizeof(output));
+    strlcpy(output, "T05thread:p", BUFSIZE);
 
     // @alwin: is this really necessary?
     uint8_t i = 0;
@@ -435,24 +435,24 @@ static void handle_watchpoint_exception(uint8_t id, seL4_Word bp_num, seL4_Word 
     }
 
     assert(i != MAX_PDS);
-    char *ptr = mem2hex((char *) &inferiors[i].gdb_id, output + strnlen(output, sizeof(output)), sizeof(uint8_t));
+    char *ptr = mem2hex((char *) &inferiors[i].gdb_id, output + strnlen(output, BUFSIZE), sizeof(uint8_t));
     switch (inferiors[i].hardware_watchpoints[bp_num - seL4_FirstWatchpoint].type) {
         case seL4_BreakOnWrite:
-            strlcpy(ptr, ".1;watch:", sizeof(output));
+            strlcpy(ptr, ".1;watch:", BUFSIZE);
             break;
         case seL4_BreakOnRead:
-            strlcpy(ptr, ".1;rwatch:", sizeof(output));
+            strlcpy(ptr, ".1;rwatch:", BUFSIZE);
             break;
         case seL4_BreakOnReadWrite:
-            strlcpy(ptr, ".1;awatch:", sizeof(output));
+            strlcpy(ptr, ".1;awatch:", BUFSIZE);
             break;
         default:
             assert(0);
     }
 
     seL4_Word vaddr_be = arch_to_big_endian(trigger_address);
-    ptr = mem2hex((char *) &vaddr_be, output + strnlen(output, sizeof(output)), sizeof(seL4_Word));
-    strlcpy(ptr, ";", sizeof(output));
+    ptr = mem2hex((char *) &vaddr_be, output + strnlen(output, BUFSIZE), sizeof(seL4_Word));
+    strlcpy(ptr, ";", BUFSIZE);
     // gdb_put_packet(output);
 }
 
@@ -467,7 +467,6 @@ static bool handle_debug_exception(uint8_t id, seL4_Word *reply_mr, char *output
         case seL4_InstructionBreakpoint:
         case seL4_SingleStep:
         case seL4_SoftwareBreakRequest:
-            // single_step_reply = 
             handle_ss_hwbreak_swbreak_exception(id, reason, output);
             break;
         case seL4_DataBreakpoint:
@@ -489,19 +488,20 @@ static bool handle_debug_exception(uint8_t id, seL4_Word *reply_mr, char *output
     //     return 1;
     // }
 
-    return 0;
+    // @alwin: i think you always want to resume for a debug exception. Think about this more.
+    return false;
 }
 
-static void handle_fault(uint8_t id, seL4_Word exception_reason) {
+static bool handle_fault(uint8_t id, seL4_Word exception_reason) {
     // #@alwin: we should probably notify gdb that a fault occured so they can debug the thread
+    // @alwin: I'm pretty sure there is no fault here that should reawaken the thread. Think about this more.
+
+    return false;
 }
 
-int gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output) {
+bool gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output) {
     if (exception_reason  == seL4_Fault_DebugException) {
         return handle_debug_exception(id, reply_mr, output);
-    } else {
-        handle_fault(id, exception_reason);
     }
-
-    return 0;
+    return handle_fault(id, exception_reason);
 }

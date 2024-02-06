@@ -1,19 +1,114 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <system>
-	<!-- <memory_region name="uart" size="0x1000" phys_addr="0xc8100000" /> -->
+	<memory_region name="uart" size="0x10000" phys_addr="0xc8100000" />
 
-    <protection_domain name="debugger" priority="254">
+    <memory_region name="tx_data_driver" size="0x200_000" page_size="0x200_000" />
+    <memory_region name="tx_data_client" size="0x200_000" page_size="0x200_000" />
+    <memory_region name="rx_data_driver" size="0x200_000" page_size="0x200_000" />
+    <memory_region name="rx_data_client" size="0x200_000" page_size="0x200_000" />
+
+    <!-- shared memory for ring buffer mechanism : serial -->
+    <memory_region name="rx_free_serial_driver" size="0x200_000" page_size="0x200_000"/>
+    <memory_region name="rx_used_serial_driver" size="0x200_000" page_size="0x200_000"/>
+    <memory_region name="tx_free_serial_driver" size="0x200_000" page_size="0x200_000"/>
+    <memory_region name="tx_used_serial_driver" size="0x200_000" page_size="0x200_000"/>
+
+    <memory_region name="tx_free_serial_client" size="0x200_000" page_size="0x200_000"/>
+    <memory_region name="tx_used_serial_client" size="0x200_000" page_size="0x200_000"/>
+    <memory_region name="rx_free_serial_client" size="0x200_000" page_size="0x200_000"/>
+    <memory_region name="rx_used_serial_client" size="0x200_000" page_size="0x200_000"/>
+
+
+    <protection_domain name="debugger" priority="97">
         <program_image path="debugger.elf" />
-        <!-- <map mr="uart" vaddr="0x4000000" perms="rw" cached="false" setvar_vaddr="uart_base_vaddr" /> -->
-        <protection_domain name="ping" id="0" priority="253">
-            <!-- <map mr="uart" vaddr="0x4000000" perms="rw" cached="false"/> -->
+
+        <!-- shared memory for ring buffer mechanism -->
+        <map mr="rx_free_serial_client" vaddr="0x4_800_000" perms="rw" cached="true" setvar_vaddr="rx_free" />
+        <map mr="rx_used_serial_client" vaddr="0x5_000_000" perms="rw" cached="true" setvar_vaddr="rx_used" />
+
+        <map mr="tx_free_serial_client" vaddr="0x3_400_000" perms="rw" cached="true" setvar_vaddr="tx_free" />
+        <map mr="tx_used_serial_client" vaddr="0x3_600_000" perms="rw" cached="true" setvar_vaddr="tx_used" />
+
+        <map mr="tx_data_client" vaddr="0x2_400_000" perms="rw" cached="true" setvar_vaddr="tx_data" />
+        <map mr="rx_data_client" vaddr="0x2_800_000" perms="rw" cached="true" setvar_vaddr="rx_data" />
+
+        <protection_domain name="ping" id="0" priority="96">
+            <map mr="uart" vaddr="0x4_000_000" perms="rw" cached="false" setvar_vaddr="uart_base" />
             <program_image path="ping.elf" />
         </protection_domain>
-        <protection_domain name="pong" id="1" priority="253">
-            <!-- <map mr="uart" vaddr="0x4000000" perms="rw" cached="false"/> -->
+        <protection_domain name="pong" id="1" priority="96">
             <program_image path="pong.elf" />
         </protection_domain>
     </protection_domain>
+
+    <protection_domain name="uart_driver" priority="100" pp="true">
+        <program_image path="uart.elf" />
+        <map mr="uart" vaddr="0x5_000_000" perms="rw" cached="false" setvar_vaddr="uart_base" />
+
+        <!-- shared memory for ring buffer mechanism -->
+        <map mr="rx_free_serial_driver" vaddr="0x4_000_000" perms="rw" cached="true" setvar_vaddr="rx_free" />
+        <map mr="rx_used_serial_driver" vaddr="0x4_200_000" perms="rw" cached="true" setvar_vaddr="rx_used" />
+        <map mr="tx_free_serial_driver" vaddr="0x4_400_000" perms="rw" cached="true" setvar_vaddr="tx_free" />
+        <map mr="tx_used_serial_driver" vaddr="0x4_600_000" perms="rw" cached="true" setvar_vaddr="tx_used" />
+
+        <map mr="tx_data_driver" vaddr="0x2_200_000" perms="rw" cached="true" />
+        <map mr="rx_data_driver" vaddr="0x2_600_000" perms="rw" cached="true" />
+
+        <!-- UART interrupt -->
+        <irq irq="225" id="1" trigger="edge" />
+    </protection_domain>
+
+    <protection_domain name="mux_tx" priority="99" pp="true">
+        <program_image path="mux_tx.elf" />
+
+         <!-- shared memory for driver/mux ring buffer mechanism -->
+        <map mr="tx_free_serial_driver" vaddr="0x4_400_000" perms="rw" cached="true" setvar_vaddr="tx_free_driver" />
+        <map mr="tx_used_serial_driver" vaddr="0x4_600_000" perms="rw" cached="true" setvar_vaddr="tx_used_driver" />
+
+        <!-- shared memory for mux/client ring buffer mechanism -->
+        <map mr="tx_free_serial_client" vaddr="0x3_400_000" perms="rw" cached="true" setvar_vaddr="tx_free_client" />
+        <map mr="tx_used_serial_client" vaddr="0x3_600_000" perms="rw" cached="true" setvar_vaddr="tx_used_client" />
+
+        <map mr="tx_data_driver" vaddr="0x2_200_000" perms="rw" cached="true" setvar_vaddr="tx_data_driver" />
+
+        <map mr="tx_data_client" vaddr="0x2_400_000" perms="rw" cached="true" setvar_vaddr="tx_data_client" />
+    </protection_domain>
+
+    <protection_domain name="mux_rx" priority="98" pp="true">
+        <program_image path="mux_rx.elf" />
+
+         <!-- shared memory for driver/mux ring buffer mechanism -->
+        <map mr="rx_free_serial_driver" vaddr="0x4_000_000" perms="rw" cached="true" setvar_vaddr="rx_free_driver" />
+        <map mr="rx_used_serial_driver" vaddr="0x4_200_000" perms="rw" cached="true" setvar_vaddr="rx_used_driver" />
+
+        <!-- shared memory for mux/client ring buffer mechanism -->
+        <map mr="rx_free_serial_client" vaddr="0x4_800_000" perms="rw" cached="true" setvar_vaddr="rx_free_client" />
+        <map mr="rx_used_serial_client" vaddr="0x5_000_000" perms="rw" cached="true" setvar_vaddr="rx_used_client" />
+
+        <map mr="rx_data_driver" vaddr="0x2_600_000" perms="rw" cached="true" setvar_vaddr="rx_data_driver" />
+        <map mr="rx_data_client" vaddr="0x2_800_000" perms="rw" cached="true" setvar_vaddr="rx_data_client" />
+    </protection_domain>
+
+
+    <channel>
+        <end pd="debugger" id="9"/>
+        <end pd="mux_tx" id="1"/>
+    </channel>
+
+    <channel>
+        <end pd="uart_driver" id="8"/>
+        <end pd="mux_tx" id="9"/>
+    </channel>
+
+   <channel>
+        <end pd="debugger" id="11"/>
+        <end pd="mux_rx" id="1"/>
+    </channel>
+
+    <channel>
+        <end pd="uart_driver" id="10"/>
+        <end pd="mux_rx" id="11"/>
+    </channel>
 
     <channel>
         <end pd="ping" id="1" />
