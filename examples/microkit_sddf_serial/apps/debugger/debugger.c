@@ -164,7 +164,8 @@ char *get_packet(event_state_t new_state) {
             /* Ctrl-C character - should result in an interrupt */
             if (c == 3) {
                 buf[0] = c;
-                break;
+                buf[1] = 0;
+                return buf;
             }
             c = gdb_get_char(new_state);
             // microkit_dbg_putc(c);
@@ -235,7 +236,6 @@ static void put_packet(char *buf, event_state_t new_state)
         gdb_put_char('#');
         gdb_put_char(int_to_hexchar(cksum >> 4));
         gdb_put_char(int_to_hexchar(cksum % 16));
-        microkit_dbg_puts("made it here 1!!!\n");
         char c = gdb_get_char(new_state);
         if (c == '+') break;
     }
@@ -264,18 +264,16 @@ void resume_system() {
 static void event_loop() {
     cont_type_t ctype = ctype_dont;
     while (ctype == ctype_dont || phase == phase_standard_event_loop) {
-        // puts("wtf2\n");
         char *input = get_packet(eventState_waitingForInputEventLoop);
         /* @alwin: If it's a Ctrl-C packet - is here right? */
         if (input[0] == 3) {
+            microkit_dbg_puts("got a ctrl-c\n");
             suspend_system();
         }
         ctype = gdb_handle_packet(input, output);
-        // puts(output);
         put_packet(output, eventState_waitingForInputEventLoop);
         if (ctype != ctype_dont && phase == phase_standard_event_loop) {
             resume_system();
-            // puts("wtf1\n");
         }
     }
 
@@ -296,7 +294,7 @@ static void init_phase2() {
 
     event_loop(phase_init_p2);
 
-    gdb_register_inferior_exec(1, "pong.elf", BASE_TCB_CAP + 1, BASE_VSPACE_CAP + 1, output);
+    gdb_register_inferior_exec(1, "bin/pong.elf", BASE_TCB_CAP + 1, BASE_VSPACE_CAP + 1, output);
     put_packet(output, eventState_waitingForInputEventLoop);
 
     /* When you have more PDs, keep doing the above pattern for all of them. Do the below call as the last event_loop() */

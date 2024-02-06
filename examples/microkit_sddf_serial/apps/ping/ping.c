@@ -54,9 +54,9 @@ void init() {
 	// uart_put_str("Hi! I'm PING!\n");
 	uart_put_str("ping\n");
 	a = a + 1;
-	while (true) {
-		uart_put_str("ping\n");
-	}
+	// while (true) {
+	// 	uart_put_str("ping\n");
+	// }
 
 	// int i = 0;
 	// while (true) {

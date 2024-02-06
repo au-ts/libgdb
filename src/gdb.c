@@ -349,8 +349,8 @@ static void handle_set_inferior(char *ptr, char *output) {
     strlcpy(output, "OK", BUFSIZE);
 }
 
-void handle_sig_interrupt() {
-
+void handle_sig_interrupt(char *output) {
+    strlcpy(output, "S02", BUFSIZE);
 }
 
 
@@ -395,7 +395,7 @@ cont_type_t gdb_handle_packet(char *input, char *output) {
         handle_configure_debug_events(input, output);
     } else if (*input == 3) {
         /* In case the ctrl-C character was entered */
-        handle_sig_interrupt();
+        handle_sig_interrupt(output);
     }
 
 
