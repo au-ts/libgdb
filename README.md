@@ -8,10 +8,11 @@ seL4-based systems. It has only been tested on the odroidc2 but should work on a
 
 ## Dependencies
 
-This library depends on seL4 and microkit changes that have not yet been upstreamed. As such, a custom version of the microkit will have
-to be built using the following sources.
+This library depends on seL4 and microkit changes that have not yet been upstreamed. As such, a custom version of the
+microkit will have to be built using the following sources.
 
-microkit: https://github.com/alwin-joshy/microkit/tree/dev_gdb 
+microkit: https://github.com/alwin-joshy/microkit/tree/dev_gdb
+
 seL4: https://github.com/alwin-joshy/seL4/tree/microkit_userspace_gdb
 
 ## Using libgdb
