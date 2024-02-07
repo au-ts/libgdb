@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<system>
+	<memory_region name="uart" size="0x1000" phys_addr="0xc8100000" />
+
+    <protection_domain name="debugger" priority="254">
+        <program_image path="debugger.elf" />
+        <map mr="uart" vaddr="0x4000000" perms="rw" cached="false" setvar_vaddr="uart_base_vaddr" />
+        <protection_domain name="ping" id="0" priority="253">
+            <map mr="uart" vaddr="0x4000000" perms="rw" cached="false" setvar_vaddr="uart_base" />
+            <program_image path="ping.elf" />
+        </protection_domain>
+        <protection_domain name="pong" id="1" priority="253">
+            <program_image path="pong.elf" />
+        </protection_domain>
+    </protection_domain>
+
+    <channel>
+        <end pd="ping" id="1" />
+        <end pd="pong" id="1" />
+    </channel>
+
+</system>
