@@ -10,9 +10,13 @@ if (NOT DEFINED BOARD)
     message(FATAL_ERROR "BOARD is not set}")
 endif (NOT DEFINED BOARD)
 
-if (NOT DEFINED CPU)
-   message(FATAL_ERROR "CPU is not set}")
-endif (NOT DEFINED CPU)
+if (BOARD STREQUAL "odroidc2")
+    set(CPU "cortex-a53")
+elseif (BOARD STREQUAL "odroidc4")
+    set(CPU "cortex-a55")
+else ()
+    message(FATAL_ERROR "board (${BOARD}) is not supported")
+endif (BOARD STREQUAL "odroidc2")
 
 # Microkit setup
 set(MICROKIT_CONFIG debug)
