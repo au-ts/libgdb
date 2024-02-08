@@ -335,6 +335,10 @@ void fault(microkit_channel ch, microkit_msginfo msginfo) {
 
     suspend_system();
 
+    microkit_dbg_puts("Got a fault on channel ");
+    puthex64(ch);
+    microkit_dbg_puts("\n");
+
     // @alwin: I'm not entirely convinced there is a point having reply_mr here still
     bool reply = gdb_handle_fault(ch, microkit_msginfo_get_label(msginfo), &reply_mr, output);
 

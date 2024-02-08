@@ -328,7 +328,11 @@ static void handle_set_inferior(char *ptr, char *output) {
     }
     ptr++;
 
-    if (parse_thread_id(ptr, &proc_id) == -1) {
+    if (*ptr == '-' && *(ptr + 1) == '1') {
+        assert(target_inferior != NULL);
+        strlcpy(output, "OK", BUFSIZE);
+        return;
+    } else if (parse_thread_id(ptr, &proc_id) == -1) {
         strlcpy(output, "E02", BUFSIZE);
         return;
     }
@@ -420,7 +424,9 @@ static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason, ch
         strlcpy(ptr, ".1;hwbreak:;", BUFSIZE);
     }
 
-    // gdb_put_packet(output);
+    /* As we include a thread-id, GDB expects the target inferior to be the thread that we set */
+    // @alwin: Double check that this is actually true
+    target_inferior = &inferiors[i];
 
     return (reason == seL4_SingleStep);
 }
@@ -489,7 +495,7 @@ static bool handle_debug_exception(uint8_t id, seL4_Word *reply_mr, char *output
     // }
 
     // @alwin: i think you always want to resume for a debug exception. Think about this more.
-    return false;
+    return true;
 }
 
 static bool handle_fault(uint8_t id, seL4_Word exception_reason, char *output) {

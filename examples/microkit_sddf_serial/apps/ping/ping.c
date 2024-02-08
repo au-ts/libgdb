@@ -57,7 +57,7 @@ void init() {
 	// seL4_DebugEnterKGDB();
 	// uart_put_str("Hi! I'm PING!\n");
 	uart_put_str("ping\n");
-	*b = 10;
+	// *b = 10;
 	a = a + 1;
 	// while (true) {
 	// 	uart_put_str("ping\n");

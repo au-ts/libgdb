@@ -137,7 +137,7 @@ bool unset_software_breakpoint(inferior_t *inferior, seL4_Word address) {
     int i = 0;
 
     for (i = 0; i < MAX_SW_BREAKS; i++) {
-        if (inferior->software_breakpoints[i].addr) {
+        if (inferior->software_breakpoints[i].addr == address) {
             return (seL4_ARM_VSpace_Write_Word(inferior->vspace, address, inferior->software_breakpoints[i].orig_word) == 0);
         }
     }
