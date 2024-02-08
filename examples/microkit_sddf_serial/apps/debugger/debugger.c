@@ -49,32 +49,6 @@ ring_handle_t tx_ring;
 event_state_t state = eventState_none;
 phase_t phase = phase_init;
 
-// void put_char(char c) {
-//     assert(state == eventState_none);
-
-//     ((char *)tx_buffer)[0] = c;
-
-//     microkit_notify(UART_CHANNEL);
-
-//     /* Maybe a co-switch if we need to wait for something here? idk? */
-// }
-
-// char get_char() {
-    // return 0;
-    // assert(state == eventState_none);
-
-    // state = eventState_waitingForInput;
-    // // microkit_notify(UART_CHANNEL);
-    // co_switch(t_event);
-
-    // /* Read the character that was returned and return it */
-    // return ((char *)rx_buffer) [0];
-// }
-
-// void puts(char *s) {
-
-// }
-
 void _putchar(char character) {
     microkit_dbg_putc(character);
 }
@@ -112,6 +86,7 @@ void gdb_puts(char *str) {
     return;
 }
 
+/* @alwin: surely there is a less disgusting way of doing this */
 void gdb_put_char(char c) {
     char tmp[2] = {c, 0};
     gdb_puts(tmp);
@@ -125,13 +100,10 @@ char gdb_get_char(event_state_t new_state) {
     void *cookie = 0;
 
     // @alwin: check dis
-    // assert(state == eventState_none);
     state = new_state;
 
     // Wait for the mxu to tell us some input has come through
     co_switch(t_event);
-
-    // microkit_dbg_puts("made it here!!!\n");
 
     int err = dequeue_used(&rx_ring, &buffer, &buffer_len, &cookie);
     if (err) {
@@ -168,10 +140,7 @@ char *get_packet(event_state_t new_state) {
                 return buf;
             }
             c = gdb_get_char(new_state);
-            // microkit_dbg_putc(c);
         }
-        // while ((c = gdb_get_char()) != '$')
-            // ;
         retry:
         /* Initialize cksum variables */
         cksum = 0;
@@ -244,9 +213,7 @@ static void put_packet(char *buf, event_state_t new_state)
 static void event_loop();
 static void init_phase2();
 
-
-
-
+// Suspend all the child protection domains
 void suspend_system() {
     // @alwin: this should be less hardcoded
     for (int i = 0; i < 2; i++) {
@@ -254,34 +221,46 @@ void suspend_system() {
     }
 }
 
+// Resume all the child protection domains
 void resume_system() {
     for (int i = 0; i < 2; i++) {
         seL4_TCB_Resume(BASE_TCB_CAP + i);
     }
 }
 
+void resume_current_inferior() {
+    seL4_TCB_Resume(BASE_TCB_CAP + target_inferior->id);
+}
+
 
 static void event_loop() {
     cont_type_t ctype = ctype_dont;
+    /* The event loop runs perpetually if we are in the standard event loop phase */
     while (ctype == ctype_dont || phase == phase_standard_event_loop) {
         char *input = get_packet(eventState_waitingForInputEventLoop);
-        /* @alwin: If it's a Ctrl-C packet - is here right? */
         if (input[0] == 3) {
-            microkit_dbg_puts("got a ctrl-c\n");
+            /* If we got a ctrl-c packet, we should suspend the whole system */
             suspend_system();
         }
         ctype = gdb_handle_packet(input, output);
         put_packet(output, eventState_waitingForInputEventLoop);
+        /* If it's a ctype_continue or ctype_sss, we whould resume the system (once we are in the standard event loop)*/
         if (ctype != ctype_dont && phase == phase_standard_event_loop) {
-            resume_system();
+            if (ctype == ctype_continue) {
+                resume_system();
+            } else {
+                resume_current_inferior();
+            }
         }
     }
 
-
-
     if (phase == phase_init) {
+        /* If we are in the initial phase, exiting the event loop means that the initial connection has been established,
+           so we can procceed and set up the rest of the protection domains */
         init_phase2();
     } else if (phase == phase_init_p2) {
+        /* If we are in the phase where we are setting up the rest of the system, we should return control back to the main()
+           function so that it can continue with the setup instead of staying in the event loop */
         return;
     }
 }
@@ -304,13 +283,13 @@ static void init_phase2() {
 
 
 void init() {
-    /* Register the first protection domain */
+    /* First, we suspend all the debugeee PDs*/
+    suspend_system();
 
     /* Set up sDDF ring buffers */
 
     /* Setup rx ring buffers */
     ring_init(&rx_ring, (ring_buffer_t *) rx_free, (ring_buffer_t *) rx_used, 0, 512, 512);
-
     /* Add buffers to the rx ring */
     for (int i = 0; i < NUM_BUFFERS - 1; i++) {
         int err = enqueue_free(&rx_ring, rx_data + (i * BUFFER_SIZE), BUFFER_SIZE, NULL);
@@ -322,7 +301,6 @@ void init() {
 
     /* Setup tx ring buffers */
     ring_init(&tx_ring, (ring_buffer_t *) tx_free, (ring_buffer_t *) tx_used, 0, 512, 512);
-
     /* Add buffers to the tx ring */
     for (int i = 0; i < NUM_BUFFERS - 1; i++) {
         int err = enqueue_free(&tx_ring, tx_data + (i * BUFFER_SIZE), BUFFER_SIZE, NULL);
@@ -332,14 +310,13 @@ void init() {
         }
     }
 
-    suspend_system();
-
+    /* Register the first protection domain */
     if (gdb_register_initial(0, "ping.elf", BASE_TCB_CAP, BASE_VSPACE_CAP)) {
         return;
     }
 
+    /* Make a coroutine for the rest of the initialization */
     t_event = co_active();
-
     t_main = co_derive((void *) t_main_stack, STACK_SIZE, event_loop);
 
     co_switch(t_main);
@@ -348,19 +325,20 @@ void init() {
 
 void fault_message() {
     put_packet(output, eventState_waitingForInputFault);
-    // Go back to waiting for normal input
+    // Go back to waiting for normal input after we send the fault packet to the host
     state = eventState_waitingForInputEventLoop;
     co_switch(t_event);
 }
 
 void fault(microkit_channel ch, microkit_msginfo msginfo) {
     seL4_Word reply_mr = 0;
-    // puts("hello\n");
 
     suspend_system();
 
+    // @alwin: I'm not entirely convinced there is a point having reply_mr here still
     bool reply = gdb_handle_fault(ch, microkit_msginfo_get_label(msginfo), &reply_mr, output);
 
+    // Start a coroutine for dealing with the fault and transmitting a message to the host
     t_event = co_active();
     t_fault = co_derive((void *) t_fault_stack, STACK_SIZE, fault_message);
     co_switch(t_fault);
@@ -378,8 +356,4 @@ void notified(microkit_channel ch) {
         state = eventState_none;
         co_switch(t_fault);
     }
-
-    // microkit_dbg_puts("hello there\n");
-
-    // puts("should be in the event loop now?\n");
 }

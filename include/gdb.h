@@ -44,6 +44,9 @@ typedef struct inferior {
     bool ss_enabled;
 } inferior_t;
 
+/* We expose the current target inferior to users of the library */
+extern inferior_t *target_inferior;
+
 typedef enum continue_type {
     ctype_dont = 0,
     ctype_continue,
