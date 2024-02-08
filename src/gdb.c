@@ -20,7 +20,7 @@ inferior_t *target_inferior = NULL;
 /* Read registers */
 static void handle_read_regs(char *output) {
     seL4_UserContext context;
-    int error = seL4_TCB_ReadRegisters(target_inferior->tcb, false, 0,
+    int error = seL4_TCB_ReadRegisters(target_inferior->tcb, true, 0,
                                        sizeof(seL4_UserContext) / sizeof(seL4_Word), &context);
     regs2hex(&context, output);
 }
@@ -31,7 +31,7 @@ static void handle_write_regs(char *ptr, char* output) {
 
     seL4_UserContext context;
     hex2regs(&context, ptr);
-    int error = seL4_TCB_WriteRegisters(target_inferior->tcb, false, 0,
+    int error = seL4_TCB_WriteRegisters(target_inferior->tcb, true, 0,
                                         sizeof(seL4_UserContext) / sizeof(seL4_Word), &context);
     strlcpy(output, "OK", BUFSIZE);
 }
@@ -492,9 +492,23 @@ static bool handle_debug_exception(uint8_t id, seL4_Word *reply_mr, char *output
     return false;
 }
 
-static bool handle_fault(uint8_t id, seL4_Word exception_reason) {
-    // #@alwin: we should probably notify gdb that a fault occured so they can debug the thread
+static bool handle_fault(uint8_t id, seL4_Word exception_reason, char *output) {
     // @alwin: I'm pretty sure there is no fault here that should reawaken the thread. Think about this more.
+    // @alwin: Currentlywe just doing SIGABRT for every kind of fault that happens, this probably could be better?
+
+    strlcpy(output, "T06thread:p", BUFSIZE);
+
+    // @alwin: is this really necessary?
+    uint8_t i = 0;
+    for (i = 0; i < MAX_PDS; i++) {
+        if (inferiors[i].id == id) break;
+    }
+
+    char *ptr = mem2hex((char *) &inferiors[i].gdb_id, output + strnlen(output, BUFSIZE), sizeof(uint8_t));
+    strlcpy(ptr, ".1;", BUFSIZE);
+
+    /* As we include a thread-id, GDB expects the target inferior to be the thread that we set */
+    target_inferior = &inferiors[i];
 
     return false;
 }
@@ -503,5 +517,5 @@ bool gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_m
     if (exception_reason  == seL4_Fault_DebugException) {
         return handle_debug_exception(id, reply_mr, output);
     }
-    return handle_fault(id, exception_reason);
+    return handle_fault(id, exception_reason, output);
 }

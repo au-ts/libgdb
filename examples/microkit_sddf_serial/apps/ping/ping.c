@@ -1,4 +1,5 @@
 #include <microkit.h>
+#include <stddef.h>
 
 #define PINGPONG_CHANNEL 1
 
@@ -43,16 +44,20 @@ void uart_put_str(char *str) {
         uart_put_char(*str);
         str++;
     }
+    return;
 }
 
 
 
 void init() {
 	int a = 1;
+	int *b = NULL;
+
 	// uart_init();
 	// seL4_DebugEnterKGDB();
 	// uart_put_str("Hi! I'm PING!\n");
 	uart_put_str("ping\n");
+	*b = 10;
 	a = a + 1;
 	// while (true) {
 	// 	uart_put_str("ping\n");

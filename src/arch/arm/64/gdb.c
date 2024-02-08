@@ -238,7 +238,6 @@ bool disable_single_step(inferior_t *inferior) {
     seL4_Word curr_word = 0;
     for (i = 0; i < size; i++) {
         if (i % sizeof(seL4_Word) == 0) {
-            // @alwin: I think this should actually use a vspace cap
             seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(inferior->vspace, mem);
             if (ret.error) {
                 *error = ret.error;
