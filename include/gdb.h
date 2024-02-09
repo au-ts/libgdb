@@ -7,6 +7,7 @@
 #include <microkit.h>
 #include <sel4/sel4_arch/types.h>
 
+#define MAX_PDS 64
 #define MAX_ELF_NAME 32
 #define MAX_SW_BREAKS 10
 
@@ -32,6 +33,8 @@ typedef struct sw_breakpoint {
 
 /* GDB uses 'inferiors' to distinguish between different processes (in our case PDs) */
 typedef struct inferior {
+    bool enabled;
+    bool wakeup;
     uint8_t id;
     /* The id in GDB cannot be 0, because this has a special meaning in GDB */
     uint16_t gdb_id;
@@ -46,6 +49,7 @@ typedef struct inferior {
 
 /* We expose the current target inferior to users of the library */
 extern inferior_t *target_inferior;
+extern inferior_t inferiors[MAX_PDS];
 
 typedef enum continue_type {
     ctype_dont = 0,
@@ -81,5 +85,5 @@ int gdb_register_inferior_fork(uint8_t id, char *output);
 int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
 bool gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
 
-cont_type_t gdb_handle_packet(char *input, char *output);
+bool gdb_handle_packet(char *input, char *output);
 

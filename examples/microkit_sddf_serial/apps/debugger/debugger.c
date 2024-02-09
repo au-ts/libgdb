@@ -223,8 +223,11 @@ void suspend_system() {
 
 // Resume all the child protection domains
 void resume_system() {
-    for (int i = 0; i < 2; i++) {
-        seL4_TCB_Resume(BASE_TCB_CAP + i);
+    for (int i = 0; i < 64; i++) {
+        if (!inferiors[i].enabled) break;
+        if (inferiors[i].wakeup) {
+            seL4_TCB_Resume(BASE_TCB_CAP + i);
+        }
     }
 }
 
@@ -234,28 +237,24 @@ void resume_current_inferior() {
 
 
 static void event_loop() {
-    cont_type_t ctype = ctype_dont;
+    bool resume = false;
     /* The event loop runs perpetually if we are in the standard event loop phase */
-    while (ctype == ctype_dont || phase == phase_standard_event_loop) {
+    while (!resume || phase == phase_standard_event_loop) {
         char *input = get_packet(eventState_waitingForInputEventLoop);
         if (input[0] == 3) {
             /* If we got a ctrl-c packet, we should suspend the whole system */
             suspend_system();
         }
-        ctype = gdb_handle_packet(input, output);
+        resume = gdb_handle_packet(input, output);
         put_packet(output, eventState_waitingForInputEventLoop);
         /* If it's a ctype_continue or ctype_sss, we whould resume the system (once we are in the standard event loop)*/
-        if (ctype != ctype_dont && phase == phase_standard_event_loop) {
-            if (ctype == ctype_continue) {
-                resume_system();
-            } else {
-                resume_current_inferior();
-            }
+        if (resume && phase == phase_standard_event_loop) {
+            resume_system();
         }
     }
 
     if (phase == phase_init) {
-        /* If we are in the initial phase, exiting the event loop means that the initial connection has been established,
+    /* If we are in the initial phase, exiting the event loop means that the initial connection has been established,
            so we can procceed and set up the rest of the protection domains */
         init_phase2();
     } else if (phase == phase_init_p2) {

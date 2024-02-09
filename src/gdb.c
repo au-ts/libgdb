@@ -9,7 +9,6 @@
 #include <printf.h>
 
 //#define DEBUG_PRINTS 1
-#define MAX_PDS 64
 #define MAX_ID 255
 #define INITIAL_INFERIOR_POS 0
 
@@ -202,6 +201,8 @@ int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vs
     inferiors[INITIAL_INFERIOR_POS].gdb_id = 1;
     inferiors[INITIAL_INFERIOR_POS].tcb = tcb;
     inferiors[INITIAL_INFERIOR_POS].vspace = vspace;
+    inferiors[INITIAL_INFERIOR_POS].enabled = true;
+    inferiors[INITIAL_INFERIOR_POS].wakeup = false;
     strlcpy(inferiors[INITIAL_INFERIOR_POS].elf_name, elf_name, MAX_ELF_NAME);
     target_inferior = &inferiors[INITIAL_INFERIOR_POS];
     num_threads = 1;
@@ -222,6 +223,8 @@ int gdb_register_inferior_fork(uint8_t id, char* output) {
     uint8_t idx = num_threads++;
     inferiors[idx].id = id;
     inferiors[idx].gdb_id = idx + 1;
+    inferiors[idx].enabled = true;
+    inferiors[idx].wakeup = false;
 
     /* Indicate that the initial thread has forked */
     inferiors[idx].tcb = inferiors[INITIAL_INFERIOR_POS].tcb;
@@ -283,16 +286,16 @@ static void handle_write_mem(char *ptr, char *output) {
     }
 }
 
-static int parse_thread_id(char *ptr, int *proc_id) {
+static char *parse_thread_id(char *ptr, int *proc_id, int* thread_id) {
     int size = 0;
     if (*ptr++ != 'p') {
-        return -1;
+        return NULL;
     }
 
     char *ptr_tmp = ptr;
     if (strncmp(ptr, "-1", 3) == 0) {
         *proc_id = -1;
-        return 0;
+        return ptr + 2;
     }
 
     while (*ptr_tmp++ != '.') {
@@ -310,15 +313,32 @@ static int parse_thread_id(char *ptr, int *proc_id) {
     }
 
     ptr = ptr_tmp;
-    if (*ptr != '0' && *ptr != '1') {
-        return -1;
+    size = 0;
+    if (strncmp(ptr, "-1", 3) == 0) {
+        *thread_id = -1;
+        return ptr + 2;
     }
 
-    return 0;
+    while (hexchar_to_int(*ptr_tmp++) != -1) {
+        size++;
+    }
+
+    /* 2 hex chars per byte */
+    size /= 2;
+
+    if (size == 0) {
+        // @alwin: Double check this
+        *thread_id = hexchar_to_int(*ptr);
+    } else {
+        hex2mem(ptr, (char *) thread_id, size);
+    }
+
+    // Return the last character that was not a hexchar
+    return ptr_tmp - 1;
 }
 
 static void handle_set_inferior(char *ptr, char *output) {
-    int proc_id = 0;
+    int proc_id, thread_id = 0;
 
     assert(*ptr++ = 'H');
 
@@ -332,7 +352,8 @@ static void handle_set_inferior(char *ptr, char *output) {
         assert(target_inferior != NULL);
         strlcpy(output, "OK", BUFSIZE);
         return;
-    } else if (parse_thread_id(ptr, &proc_id) == -1) {
+    } else if (parse_thread_id(ptr, &proc_id, &thread_id) == NULL) {
+        // @alwin: Do we care about thread_id here?
         strlcpy(output, "E02", BUFSIZE);
         return;
     }
@@ -357,10 +378,54 @@ void handle_sig_interrupt(char *output) {
     strlcpy(output, "S02", BUFSIZE);
 }
 
+void handle_vcont(char *input, char *output) {
+    /* Skip the original vcont prefix */
+    input += 5;
 
-cont_type_t gdb_handle_packet(char *input, char *output) {
-    cont_type_t ctype = ctype_dont;
+    bool handled[MAX_PDS] = {0};
 
+    while (*input != 0) {
+        assert(*input++ == ';');
+
+        bool stepping;
+        if (*input == 's') {
+            stepping = true;
+        } else if (*input == 'c') {
+            stepping = false;
+        } else {
+            /* @alwin: For now only deal with stepping and continuing */
+            strlcpy(output, "E04", BUFSIZE);
+            return;
+        }
+        input++;
+
+        do {
+            assert(*input++ == ':');
+            int proc_id, thread_id;
+            input = parse_thread_id(input, &proc_id, &thread_id);
+            assert(inferiors[proc_id - 1].gdb_id == proc_id);
+
+            if (proc_id == -1) {
+                continue;
+            }
+
+            if (handled[proc_id - 1]) {
+                continue;
+            }
+
+            if (stepping) {
+                enable_single_step(&inferiors[proc_id - 1]);
+            } else {
+                disable_single_step(&inferiors[proc_id - 1]);
+            }
+
+            handled[proc_id - 1] = true;
+            inferiors[proc_id - 1].wakeup = true;
+        } while (*input == ':');
+    }
+}
+
+bool gdb_handle_packet(char *input, char *output) {
     output[0] = 0;
     if (*input == 'g') {
         handle_read_regs(output);
@@ -376,11 +441,11 @@ cont_type_t gdb_handle_packet(char *input, char *output) {
 
         if (stepping) {
             enable_single_step(target_inferior);
-            ctype = ctype_ss;
         } else {
-            ctype = ctype_continue;
             disable_single_step(target_inferior);
         }
+
+        return true;
         /* TODO: Support continue from an address and single step */
     } else if (*input == 'q') {
         handle_query(input, output);
@@ -391,9 +456,11 @@ cont_type_t gdb_handle_packet(char *input, char *output) {
         strlcpy(output, "T05swbreak:;", BUFSIZE);
     } else if (*input == 'v') {
         if (strncmp(input, "vCont?", 7) == 0) {
-            strlcpy(output, "vCont;c", BUFSIZE);
-        } else if (strncmp(input, "vCont;c", 7) == 0) {
-            /* DO NOTHING CASE */
+            strlcpy(output, "vCont;c;C;s;S", BUFSIZE);
+        } else if (strncmp(input, "vCont;", 6) == 0) {
+            /* vCont is a substitute for s and c when doing multiprocess stuff */
+            handle_vcont(input, output);
+            return true;
         }
     } else if (*input == 'z' || *input == 'Z') {
         handle_configure_debug_events(input, output);
@@ -402,8 +469,7 @@ cont_type_t gdb_handle_packet(char *input, char *output) {
         handle_sig_interrupt(output);
     }
 
-
-    return ctype;
+    return false;
 }
 
 static bool handle_ss_hwbreak_swbreak_exception(uint8_t id, seL4_Word reason, char *output) {
