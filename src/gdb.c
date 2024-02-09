@@ -390,6 +390,10 @@ void handle_vcont(char *input, char *output) {
         bool stepping;
         if (*input == 's') {
             stepping = true;
+            for (int i = 0; i < MAX_PDS; i++) {
+                if (!inferiors[i].enabled) break;
+                inferiors[i].wakeup = false;
+            }
         } else if (*input == 'c') {
             stepping = false;
         } else {
