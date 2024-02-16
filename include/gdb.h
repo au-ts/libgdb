@@ -40,7 +40,6 @@ typedef struct inferior {
     uint16_t gdb_id;
     seL4_CPtr tcb;
     seL4_CPtr vspace;
-    char elf_name[MAX_ELF_NAME];
     sw_break_t software_breakpoints[MAX_SW_BREAKS];
     hw_break_t hardware_breakpoints[seL4_NumExclusiveBreakpoints];
     hw_watch_t hardware_watchpoints[seL4_NumExclusiveWatchpoints];
@@ -80,9 +79,9 @@ char *hex2regs(seL4_UserContext *regs, char *buf);
 char *inf_mem2hex(inferior_t *inferior, seL4_Word mem, char *buf, int size, seL4_Word *error);
 seL4_Word inf_hex2mem(inferior_t *inferior, char *buf, seL4_Word mem, int size);
 
-int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vspace);
-int gdb_register_inferior_fork(uint8_t id, char *output);
-int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
+int gdb_register_inferior(uint8_t id, seL4_CPtr tcb, seL4_CPtr vspace);
+// int gdb_register_inferior_fork(uint8_t id, char *output);
+// int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
 bool gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
 
 bool gdb_handle_packet(char *input, char *output);

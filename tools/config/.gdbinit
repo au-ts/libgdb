@@ -4,6 +4,7 @@ define connect_serial
 set serial baud [BAUD]
 set detach-on-fork off
 set follow-fork-mode child
-# replace [PATH] with path to serial device or virt console 
+# replace [PATH] with path to serial device or virt console
 target remote [PATH]
+set scheduler-locking step
 end

@@ -13,13 +13,9 @@ typedef enum event_state {
     eventState_waitingForInputFault
 } event_state_t;
 
-typedef enum phase {
-    phase_init = 0,
-    phase_init_p2,
-    phase_standard_event_loop
-} phase_t;
-
 cothread_t t_event, t_main, t_fault;
+
+#define NUM_DEBUGEES 2
 
 #define STACK_SIZE 4096
 static char t_main_stack[STACK_SIZE];
@@ -47,7 +43,6 @@ ring_handle_t tx_ring;
 
 /* The current event state and phase */
 event_state_t state = eventState_none;
-phase_t phase = phase_init;
 
 void _putchar(char character) {
     microkit_dbg_putc(character);
@@ -231,15 +226,10 @@ void resume_system() {
     }
 }
 
-void resume_current_inferior() {
-    seL4_TCB_Resume(BASE_TCB_CAP + target_inferior->id);
-}
-
-
 static void event_loop() {
     bool resume = false;
     /* The event loop runs perpetually if we are in the standard event loop phase */
-    while (!resume || phase == phase_standard_event_loop) {
+    while (true) {
         char *input = get_packet(eventState_waitingForInputEventLoop);
         if (input[0] == 3) {
             /* If we got a ctrl-c packet, we should suspend the whole system */
@@ -248,38 +238,11 @@ static void event_loop() {
         resume = gdb_handle_packet(input, output);
         put_packet(output, eventState_waitingForInputEventLoop);
         /* If it's a ctype_continue or ctype_sss, we whould resume the system (once we are in the standard event loop)*/
-        if (resume && phase == phase_standard_event_loop) {
+        if (resume) {
             resume_system();
         }
     }
-
-    if (phase == phase_init) {
-    /* If we are in the initial phase, exiting the event loop means that the initial connection has been established,
-           so we can procceed and set up the rest of the protection domains */
-        init_phase2();
-    } else if (phase == phase_init_p2) {
-        /* If we are in the phase where we are setting up the rest of the system, we should return control back to the main()
-           function so that it can continue with the setup instead of staying in the event loop */
-        return;
-    }
 }
-
-static void init_phase2() {
-    /* Register any remaining protection domains */
-    phase = phase_init_p2;
-    gdb_register_inferior_fork(1, output);
-    put_packet(output, eventState_waitingForInputEventLoop);
-
-    event_loop(phase_init_p2);
-
-    gdb_register_inferior_exec(1, "bin/pong.elf", BASE_TCB_CAP + 1, BASE_VSPACE_CAP + 1, output);
-    put_packet(output, eventState_waitingForInputEventLoop);
-
-    /* When you have more PDs, keep doing the above pattern for all of them. Do the below call as the last event_loop() */
-    phase = phase_standard_event_loop;
-    event_loop();
-}
-
 
 void init() {
     /* First, we suspend all the debugeee PDs*/
@@ -309,9 +272,8 @@ void init() {
         }
     }
 
-    /* Register the first protection domain */
-    if (gdb_register_initial(0, "ping.elf", BASE_TCB_CAP, BASE_VSPACE_CAP)) {
-        return;
+    for (int i = 0; i < NUM_DEBUGEES; i++) {
+        gdb_register_inferior(i, BASE_TCB_CAP + i, BASE_VSPACE_CAP + i);
     }
 
     /* Make a coroutine for the rest of the initialization */

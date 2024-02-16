@@ -43,7 +43,7 @@ static void handle_query(char *ptr, char *output) {
     } else if (strncmp(ptr, "qfThreadInfo", 12) == 0) {
         char *out_ptr = output;
         *out_ptr++ = 'm';
-        for (uint8_t i = 0; i < 64; i++) {
+        for (uint8_t i = 0; i < MAX_PDS; i++) {
             if (inferiors[i].tcb != 0) {
                 if (i != 0) {
                     *out_ptr++ = ',';
@@ -185,70 +185,25 @@ static void handle_configure_debug_events(char *ptr, char *output) {
     }
 }
 
-int gdb_register_initial(uint8_t id, char* elf_name, seL4_CPtr tcb, seL4_CPtr vspace) {
-    /* If this isn't the first thread that was initialized */
-    if (num_threads != 0 || inferiors[INITIAL_INFERIOR_POS].tcb != 0) {
-        return -1;
-    }
-
-    /* If the provided id is greater than expected */
-    // @alwin: is this right?
+int gdb_register_inferior(uint8_t id, seL4_CPtr tcb, seL4_CPtr vspace) {
     if (id > MAX_ID) {
         return -1;
     }
 
-    inferiors[INITIAL_INFERIOR_POS].id = id;
-    inferiors[INITIAL_INFERIOR_POS].gdb_id = 1;
-    inferiors[INITIAL_INFERIOR_POS].tcb = tcb;
-    inferiors[INITIAL_INFERIOR_POS].vspace = vspace;
-    inferiors[INITIAL_INFERIOR_POS].enabled = true;
-    inferiors[INITIAL_INFERIOR_POS].wakeup = false;
-    strlcpy(inferiors[INITIAL_INFERIOR_POS].elf_name, elf_name, MAX_ELF_NAME);
-    target_inferior = &inferiors[INITIAL_INFERIOR_POS];
-    num_threads = 1;
-    return 0;
-}
-
-int gdb_register_inferior_fork(uint8_t id, char* output) {
-    /* Must already have one thread that has been registered */
-    if (num_threads < 1 || inferiors[INITIAL_INFERIOR_POS].tcb == 0) {
-        return -1;
+    if (num_threads == MAX_PDS) {
+        return - 1;
     }
 
-    /* We have too many PDs */
-    if (num_threads >= MAX_PDS) {
-        return -1;
+    inferiors[num_threads].id = id;
+    inferiors[num_threads].gdb_id = num_threads + 1;
+    inferiors[num_threads].tcb = tcb;
+    inferiors[num_threads].vspace = vspace;
+    inferiors[num_threads].enabled = true;
+    inferiors[num_threads].wakeup = false;
+    if (!target_inferior) {
+        target_inferior = &inferiors[num_threads];
     }
-
-    uint8_t idx = num_threads++;
-    inferiors[idx].id = id;
-    inferiors[idx].gdb_id = idx + 1;
-    inferiors[idx].enabled = true;
-    inferiors[idx].wakeup = false;
-
-    /* Indicate that the initial thread has forked */
-    inferiors[idx].tcb = inferiors[INITIAL_INFERIOR_POS].tcb;
-    inferiors[idx].vspace = inferiors[INITIAL_INFERIOR_POS].vspace;
-    strlcpy(output, "T05fork:p", BUFSIZE);
-    char *buf = mem2hex((char *) &inferiors[idx].gdb_id, output + strnlen(output, BUFSIZE), sizeof(uint8_t));
-    strlcpy(buf, ".1;", BUFSIZE - strnlen(output, BUFSIZE));
-    return 0;
-}
-
-int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output) {
-    int idx = 0;
-    for (; idx < MAX_PDS; idx++) {
-        if (inferiors[idx].id == id) break;
-    }
-
-    if (idx >= MAX_PDS) return -1;
-
-    /* Indicate that the new thread is execing something */
-    strlcpy(output, "T05exec:", BUFSIZE);
-    char *buf = mem2hex(elf_name, output + strnlen(output, BUFSIZE), strnlen(elf_name, BUFSIZE - strnlen(output, BUFSIZE)));
-    strlcpy(buf, ";", BUFSIZE - strnlen(output, BUFSIZE));
-    inferiors[idx].tcb = tcb;
-    inferiors[idx].vspace = vspace;
+    num_threads++;
     return 0;
 }
 
@@ -396,6 +351,12 @@ void handle_vcont(char *input, char *output) {
             }
         } else if (*input == 'c') {
             stepping = false;
+            // @alwin: i think this is a bit dodgy. not entirely convinced that this will
+            // work when there are both step and continue things in the same package
+            for (int i = 0; i < MAX_PDS; i++) {
+                if (!inferiors[i].enabled) break;
+                inferiors[i].wakeup = true;
+            }
         } else {
             /* @alwin: For now only deal with stepping and continuing */
             strlcpy(output, "E04", BUFSIZE);

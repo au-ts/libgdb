@@ -144,7 +144,9 @@ bool unset_software_breakpoint(inferior_t *inferior, seL4_Word address) {
             if (!err) {
                 inferior->software_breakpoints[i].addr = 0;
             }
-            return err;
+
+            /* If err == 0, we want to return true (success), else return false (failiure) */
+            return !err;
         }
     }
 
