@@ -15,6 +15,8 @@ microkit: https://github.com/alwin-joshy/microkit/tree/dev_gdb
 
 seL4: https://github.com/alwin-joshy/seL4/tree/microkit_userspace_gdb
 
+NOTE: These kernel and microkit changes may break other configurations. Use at your own risk.
+
 ## Using libgdb
 
 libgdb currently has an external dependency on microkit which it depends on for seL4 related information.
