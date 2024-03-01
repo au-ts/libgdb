@@ -90,6 +90,8 @@ void handle_irq() {
     Then we want to dequeue from the rx free ring, and populate it, then add to the rx used queue
     ready to be processed by the client server
     */
+
+    // LOG_DRIVER("Handling IRQ\n");
     int input = getchar();
     char input_char = (char) input;
     microkit_irq_ack(IRQ_CH);
@@ -138,8 +140,6 @@ void handle_irq() {
         }
 
         ((char *) buffer)[0] = (char) input;
-
-        LOG_DRIVER_ERR("hey there\n");
 
         // Now place in the rx used ring
         ret = enqueue_used(&rx_ring, buffer, 1, &cookie);

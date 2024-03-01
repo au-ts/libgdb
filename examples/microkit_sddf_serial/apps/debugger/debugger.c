@@ -107,6 +107,8 @@ char gdb_get_char(event_state_t new_state) {
     }
 
     char c = ((char *) buffer)[0];
+    // microkit_dbg_putc(c);
+    // microkit_dbg_putc('\n');
 
     err = enqueue_free(&rx_ring, buffer, buffer_len, NULL);
     if (err) {
@@ -272,8 +274,6 @@ void init() {
             microkit_dbg_puts("Failed to setup tx ring buffers\n");
         }
     }
-
-    gdb_puts("hello world\n");
 
     for (int i = 0; i < NUM_DEBUGEES; i++) {
         gdb_register_inferior(i, BASE_TCB_CAP + i, BASE_VSPACE_CAP + i);

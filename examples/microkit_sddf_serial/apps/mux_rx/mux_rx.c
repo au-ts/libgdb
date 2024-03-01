@@ -122,7 +122,7 @@ int give_single_char(int curr_client, char * drv_buffer, int drv_buffer_len) {
         return 1;
     }
 
-    // num_to_get_chars[curr_client - 1] -= 1;
+    num_to_get_chars[curr_client - 1] -= 1;
 
     microkit_notify(curr_client);
 
@@ -149,10 +149,11 @@ void handle_rx() {
     void *cookie = 0;
 
     // We can only be here if we have been notified by the driver
-    int ret = dequeue_used(&drv_rx_ring, &buffer, &buffer_len, &cookie) != 0;
+    int ret = dequeue_used(&drv_rx_ring, &buffer, &buffer_len, &cookie);
     if (ret != 0) {
         microkit_dbg_puts(microkit_name);
         microkit_dbg_puts(": getchar - unable to dequeue used buffer\n");
+        return;
     }
 
     // We can either get a single char here, if driver is in RAW mode, or
@@ -162,7 +163,6 @@ void handle_rx() {
 
     // This is for our RAW mode, char by char
     if (UART_MODE == RAW_MODE) {
-        // microkit_dbg_puts("In raw mode mux rx\n");
         char got_char = chars[0];
 
         // We have now gotten a character, deal with the input direction switch
@@ -282,5 +282,12 @@ void notified(microkit_channel ch) {
     }  else {
         // This was recieved on a client channel. Index the number of characters to get
         num_to_get_chars[ch - 1] += 1;
+        if (!ring_empty((ring_buffer_t *) rx_used_driver)) {
+            if (num_to_get_chars[ch - 1] > 0) {
+                handle_rx();
+            } else {
+                microkit_notify(ch);
+            }
+        }
     }
 }
