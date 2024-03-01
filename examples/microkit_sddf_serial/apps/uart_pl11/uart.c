@@ -3,7 +3,8 @@
 #include <microkit.h>
 #include "uart.h"
 #include "uart_config.h"
-#include <sddf/serial/shared_ringbuffer.h>
+#include <serial/shared_ringbuffer.h> 
+
 
 /*
  * The PL011 is supposedly universal, which means that this driver should be
@@ -137,6 +138,8 @@ void handle_irq() {
         }
 
         ((char *) buffer)[0] = (char) input;
+
+        LOG_DRIVER_ERR("hey there\n");
 
         // Now place in the rx used ring
         ret = enqueue_used(&rx_ring, buffer, 1, &cookie);

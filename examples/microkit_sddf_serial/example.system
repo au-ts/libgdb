@@ -2,10 +2,13 @@
 <system>
 
     <!-- odroidc2 -->
-	<memory_region name="uart" size="0x10000" phys_addr="0xc8100000" />
+	<!-- <memory_region name="uart" size="0x10000" phys_addr="0xc8100000" /> -->
 
     <!-- odroidc4 -->
     <!-- <memory_region name="uart" size="0x1_000" phys_addr="0xff803000" /> -->
+
+    <!-- For the PL011 -->
+    <memory_region name="uart" size="0x10000" phys_addr="0x9000000" />
 
     <memory_region name="tx_data_driver" size="0x200_000" page_size="0x200_000" />
     <memory_region name="tx_data_client" size="0x200_000" page_size="0x200_000" />
@@ -59,8 +62,12 @@
         <map mr="tx_data_driver" vaddr="0x2_200_000" perms="rw" cached="true" />
         <map mr="rx_data_driver" vaddr="0x2_600_000" perms="rw" cached="true" />
 
-        <!-- UART interrupt -->
-        <irq irq="225" id="1" trigger="edge" />
+        <!-- UART interrupt (meson) -->
+        <!-- <irq irq="225" id="1" trigger="edge" /> -->
+
+        <!-- UART interrupt (PL011) -->
+        <irq irq="33" id="1" trigger="edge" />
+
     </protection_domain>
 
     <protection_domain name="mux_tx" priority="99" pp="true">
