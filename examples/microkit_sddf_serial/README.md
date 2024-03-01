@@ -27,7 +27,7 @@ version of GDB.
 ```
 cd build
 aarch64-none-elf-gdb
-gdb > connect
+aarch64-none-elf-gdb> connect
 ```
 
 At this point, you will be connected to the target system, which will be pre-registered with several
@@ -41,9 +41,9 @@ corresponds to `pong`. So, the process to load symbols for the protection domain
 following
 
 ```
-gdb > file bin/ping.elf
-gdb > inferior 1
-gdb > file bin/pong.elf
+aarch64-none-elf-gdb> file bin/ping.elf
+aarch64-none-elf-gdb> inferior 1
+aarch64-none-elf-gdb> file bin/pong.elf
 ```
 
 One important note about GDB is that you must call continue from the protection domain that caused
