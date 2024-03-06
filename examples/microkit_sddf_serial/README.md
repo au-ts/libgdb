@@ -17,8 +17,23 @@ make
 
 ## Currently supported boards
 
-The boards that have been tested to work are`[odroidc4, odroidc2]`. To switch between the two,
+The boards that have been tested to work are`[odroidc4, odroidc2, qemu_arm_virt]`. To switch between the two,
 you may need to adjust the `example.system` file as necesssary. 
+
+### QEMU booting instructions
+
+```
+qemu-system-aarch64 \
+       -machine virt,\
+       -cpu cortex-a53 \
+       -m size=2048M \
+       -nographic \
+       -serial mon:pty \
+       -device loader,file=bin/loader.img,addr=0x70000000,cpu-num=0
+```
+
+This configuration will redirect the output to a virtual cosnole, which you can connect GDB to.
+Note: The serial demux tool does not currently allow you to operate on virtual consoles.
 
 ## How to use 
 
