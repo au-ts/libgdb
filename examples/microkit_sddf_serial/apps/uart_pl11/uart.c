@@ -143,6 +143,10 @@ void handle_irq() {
 
         // Now place in the rx used ring
         ret = enqueue_used(&rx_ring, buffer, 1, &cookie);
+        if (ret != 0) {
+            LOG_DRIVER_ERR("unable to enqeueue to RX used ring\n");
+            return;
+        }
         microkit_notify(RX_CH);
 
     } else if (global_serial_driver.mode == LINE_MODE) {

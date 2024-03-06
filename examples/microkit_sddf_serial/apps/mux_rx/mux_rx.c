@@ -275,7 +275,9 @@ void notified(microkit_channel ch) {
     // We should only ever recieve notifications from the client
     // Sanity check the client
     if (ch == DRV_CH) {
-        handle_rx();
+        if (!ring_empty((ring_buffer_t *) rx_used_driver)) {
+            handle_rx();
+        }
     } else if (ch < 1 || ch > SERIAL_NUM_CLIENTS) {
         microkit_dbg_puts("Received a bad client channel\n");
         return;
