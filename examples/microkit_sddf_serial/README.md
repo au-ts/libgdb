@@ -15,6 +15,11 @@ cmake -DMICROKIT_SDK=PATH_TO_SDK -DBOARD="odroidc2" ..
 make
 ```
 
+## Currently supported boards
+
+The boards that have been tested to work are`[odroidc4, odroidc2]`. To switch between the two,
+you may need to adjust the `example.system` file as necesssary. 
+
 ## How to use 
 
 `tools/config/.gdbinit`contains a GDB configuration script that may be useful. Note that this file
@@ -35,25 +40,27 @@ _inferiors_, each corresponding to a child protection domain under the debugger.
 GDB is not aware of the mapping between a protection domain and an executable, as no symbol tables
 have been loaded.
 
-The IDs of the inferiors show in GDB correspond directly to the IDs they have been assigned in
-`example.system`. That is, inferior 0 corresponds to the `ping` protection domain, while inferior 1
-corresponds to `pong`. So, the process to load symbols for the protection domains looks like the
-following
+The IDs of the inferiors show in GDB correspond to the IDs they have been assigned in
+`example.system`. The inferior IDs are consecutive, beginning at 1 with exactly as
+many inferiors as child protection domains in the debugger PD, with lower inferior IDs given to lower
+system description IDs. That is, inferior 1 corresponds to the `ping` protection domain, while
+inferior 2 corresponds to `pong`. So, the process to load symbols for the protection domains looks
+like the following
 
 ```
 aarch64-none-elf-gdb> file bin/ping.elf
-aarch64-none-elf-gdb> inferior 1
+aarch64-none-elf-gdb> inferior 2
 aarch64-none-elf-gdb> file bin/pong.elf
 ```
 
 One important note about GDB is that you must call continue from the protection domain that caused
-an interrupt into GDB. Since the system is initialized with the current inferior being inferior 0, this
-means that you must switch to inferior 0 before calling continue.
+an interrupt into GDB. Since the system is initialized with the current inferior being inferior 1, this
+means that you must switch to inferior 1 before calling continue.
 
 The stub implements the semantics imposed by `scheduler-locking step`, meainng that a continue resumes
 all protection domains in the system, whereas a step only resumes the protection domain that is being
 stepped.
 
 Note that this implementation currently demands exclusive write-access to the serial port of the system.
-If you would still like to observe other reads in the system, this can be done using the tool found in
-tools/serial_demux`.
+It does not require exclusive read-access to the system, and you can use the tool found in 
+`tools/serial_demux` to share the serial output stream.

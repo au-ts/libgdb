@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <system>
+
+    <!-- odroidc2 -->
 	<memory_region name="uart" size="0x10000" phys_addr="0xc8100000" />
+
+    <!-- odroidc4 -->
+    <!-- <memory_region name="uart" size="0x1_000" phys_addr="0xff803000" /> -->
 
     <memory_region name="tx_data_driver" size="0x200_000" page_size="0x200_000" />
     <memory_region name="tx_data_client" size="0x200_000" page_size="0x200_000" />
