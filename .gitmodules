@@ -1,0 +1,4 @@
+[submodule "sddf"]
+	path = sddf
+	url = git@github.com:au-ts/sDDF.git
+	branch = cmake_restructure

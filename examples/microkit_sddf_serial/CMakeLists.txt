@@ -14,10 +14,12 @@ if (BOARD STREQUAL "odroidc2")
     set(CPU "cortex-a53")
     set(ARCH "arm")
     set(MODE "64")
+    set(SERIAL_DRIVER "meson")
 elseif (BOARD STREQUAL "odroidc4")
     set(CPU "cortex-a55")
     set(ARCH "arm")
     set(MODE "64")
+    set(SERIAL_DRIVER "meson")
 else ()
     message(FATAL_ERROR "board (${BOARD}) is not supported")
 endif (BOARD STREQUAL "odroidc2")
@@ -46,15 +48,18 @@ set_target_properties(microkit PROPERTIES IMPORTED_LOCATION ${BOARD_DIR}/lib/lib
 
 add_subdirectory(../../ lib/gdb/)
 
+# Libraries
 add_subdirectory(lib/libco)
-add_subdirectory(lib/sddf)
+add_subdirectory(lib/sDDF)
+add_subdirectory(lib/sDDF/serial/libserialsharedringbuffer)
 
+# Components
 add_subdirectory(apps/ping)
 add_subdirectory(apps/pong)
 add_subdirectory(apps/debugger)
-add_subdirectory(apps/uart)
-add_subdirectory(apps/mux_rx)
-add_subdirectory(apps/mux_tx)
+add_subdirectory(lib/sddf/serial/drivers)
+add_subdirectory(lib/sddf/serial/components/mux_tx)
+add_subdirectory(lib/sddf/serial/components/mux_rx)
 
 add_custom_target(image ALL
                    COMMAND ${MICROKIT_TOOL} ${CMAKE_SOURCE_DIR}/example.system --search-path ${EXECUTABLE_OUTPUT_PATH}
