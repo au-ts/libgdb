@@ -59,12 +59,14 @@ void *memchr(const void *src, int c, seL4_Word n)
 /* Convert a character (representing a hexadecimal) to its integer equivalent */
 int hexchar_to_int(unsigned char c)
 {
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
     if (c >= 'a' && c <= 'f') {
         return c - 'a' + 10;
-    } else if (c >= 'A' && c <= 'F') {
+    }
+    if (c >= 'A' && c <= 'F') {
         return c - 'A' + 10;
-    } else if (c >= '0' && c <= '9') {
-        return c - '0';
     }
     return -1;
 }
