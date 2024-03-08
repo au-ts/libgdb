@@ -50,16 +50,16 @@ add_subdirectory(../../ lib/gdb/)
 
 # Libraries
 add_subdirectory(lib/libco)
-add_subdirectory(lib/sDDF)
-add_subdirectory(lib/sDDF/serial/libserialsharedringbuffer)
+add_subdirectory(../../sddf lib/sddf)
+add_subdirectory(../../sddf/serial/libserialsharedringbuffer lib/sddf/serial/libserialsharedringbuffer)
 
 # Components
 add_subdirectory(apps/ping)
 add_subdirectory(apps/pong)
 add_subdirectory(apps/debugger)
-add_subdirectory(lib/sddf/serial/drivers)
-add_subdirectory(lib/sddf/serial/components/mux_tx)
-add_subdirectory(lib/sddf/serial/components/mux_rx)
+add_subdirectory(../../sddf/serial/drivers lib/sddf/serial/drivers)
+add_subdirectory(../../sddf/serial/components/mux_tx lib/sddf/serial/components/mux_tx)
+add_subdirectory(../../sddf/serial/components/mux_rx lib/sddf/serial/components/mux_rx)
 
 add_custom_target(image ALL
                    COMMAND ${MICROKIT_TOOL} ${CMAKE_SOURCE_DIR}/example.system --search-path ${EXECUTABLE_OUTPUT_PATH}
