@@ -36,13 +36,12 @@ set(CMAKE_C_COMPILER aarch64-none-elf-gcc)
 set(CMAKE_C_FLAGS "-mcpu=${CPU} -mstrict-align -nostdlib -ffreestanding -g3 -Wall -Wno-array-bounds -Wno-unused-variable -Wno-unused-function -Werror -DBOARD_${BOARD}")
 set(CMAKE_EXE_LINKER_FLAGS "-T ${BOARD_DIR}/lib/microkit.ld")
 
-project(microkit_example C)
-
-include_directories(${BOARD_DIR}/include)
-link_directories(${BOARD_DIR}/lib)
+project(microkit_sddf_example C)
 
 add_library(microkit STATIC IMPORTED)
 set_target_properties(microkit PROPERTIES IMPORTED_LOCATION ${BOARD_DIR}/lib/libmicrokit.a)
+target_include_directories(microkit INTERFACE ${BOARD_DIR}/include)
+target_link_directories(microkit INTERFACE ${BOARD_DIR}/lib)
 
 add_subdirectory(../../ lib/gdb/)
 
