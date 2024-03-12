@@ -344,6 +344,7 @@ void handle_vcont(char *input, char *output) {
 
         bool stepping;
         if (*input == 's') {
+            /* If we are stepping, only the thing being stepped should continue*/
             stepping = true;
             for (int i = 0; i < MAX_PDS; i++) {
                 if (!inferiors[i].enabled) break;
@@ -400,18 +401,6 @@ bool gdb_handle_packet(char *input, char *output) {
         handle_read_mem(input, output);
     } else if (*input == 'M') {
         handle_write_mem(input, output);
-    } else if (*input == 'c' || *input == 's') {
-        int stepping = *input == 's' ? 1 : 0;
-        input++;
-
-        if (stepping) {
-            enable_single_step(target_inferior);
-        } else {
-            disable_single_step(target_inferior);
-        }
-
-        return true;
-        /* TODO: Support continue from an address and single step */
     } else if (*input == 'q') {
         handle_query(input, output);
     } else if (*input == 'H') {

@@ -38,11 +38,10 @@ set(CMAKE_EXE_LINKER_FLAGS "-T ${BOARD_DIR}/lib/microkit.ld")
 
 project(microkit_example C)
 
-include_directories(${BOARD_DIR}/include)
-link_directories(${BOARD_DIR}/lib)
-
 add_library(microkit STATIC IMPORTED)
 set_target_properties(microkit PROPERTIES IMPORTED_LOCATION ${BOARD_DIR}/lib/libmicrokit.a)
+target_include_directories(microkit INTERFACE ${BOARD_DIR}/include)
+target_link_directories(microkit INTERFACE ${BOARD_DIR}/lib)
 
 add_subdirectory(../../ lib/gdb/)
 

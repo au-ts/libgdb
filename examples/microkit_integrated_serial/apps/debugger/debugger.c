@@ -11,6 +11,8 @@ static char input[BUFSIZE];
 /* Output buffer */
 static char output[BUFSIZE];
 
+#define NUM_DEBUGEES 2
+
 // @alwin: Do we really want this in here? The GDB library relies on printf, but I think that dependency should be removed
 void _putchar(char character) {
     microkit_dbg_putc(character);
@@ -111,31 +113,35 @@ static void put_packet(char *buf)
     }
 }
 
-
-
-cont_type_t gdb_event_loop() {
-    cont_type_t ctype = ctype_dont;
-    while (ctype == ctype_dont) {
-        char *input = get_packet();
-        ctype = gdb_handle_packet(input, output);
-        put_packet(output);
-    }
-
-    return ctype;
-}
-
-
-void suspend_system() {
-    // @alwin: this should be less hardcoded
-    for (int i = 0; i < 2; i++) {
+// Suspend all the child protection domains
+static void suspend_system() {
+    // @alwin: There is no guarantee the debugees have consecutive IDs starting
+    // from zero
+    for (int i = 0; i < NUM_DEBUGEES; i++) {
         seL4_TCB_Suspend(BASE_TCB_CAP + i);
     }
 }
 
-void resume_system() {
-    for (int i = 0; i < 2; i++) {
-        seL4_TCB_Resume(BASE_TCB_CAP + i);
+// Resume all the child protection domains
+static void resume_system() {
+    for (int i = 0; i < 64; i++) {
+        if (!inferiors[i].enabled) break;
+        if (inferiors[i].wakeup) {
+            seL4_TCB_Resume(BASE_TCB_CAP + i);
+        }
     }
+}
+
+void gdb_event_loop() {
+    cont_type_t ctype = ctype_dont;
+    while (ctype == ctype_dont) {
+        char *input = get_packet();
+        ctype = gdb_handle_packet(input, output);
+        if (ctype != ctype_dont) break;
+        put_packet(output);
+    }
+
+    resume_system();
 }
 
 void init() {
@@ -143,27 +149,12 @@ void init() {
 
 	uart_init();
 
-    /* Register the first protection domain */
-    if (gdb_register_initial(0, "ping.elf", BASE_TCB_CAP, BASE_VSPACE_CAP)) {
-        uart_put_str("Failed to initialize initial inferior");
-        return;
+    for (int i = 0; i < NUM_DEBUGEES; i++) {
+        gdb_register_inferior(i, BASE_TCB_CAP + i, BASE_VSPACE_CAP + i);
     }
 
     /* Wait for a connection to be established */
     gdb_event_loop();
-
-    /* Register any remaining protection domains */
-    gdb_register_inferior_fork(1, output);
-    put_packet(output);
-
-    gdb_event_loop();
-
-    gdb_register_inferior_exec(1, "bin/pong.elf", BASE_TCB_CAP + 1, BASE_VSPACE_CAP + 1, output);
-    put_packet(output);
-
-    gdb_event_loop();
-
-    resume_system();
 }
 
 void fault(microkit_channel ch, microkit_msginfo msginfo) {
@@ -174,26 +165,11 @@ void fault(microkit_channel ch, microkit_msginfo msginfo) {
     suspend_system();
     bool reply = gdb_handle_fault(ch, microkit_msginfo_get_label(msginfo), &reply_mr, output);
     put_packet(output);
-
-    cont_type_t c = gdb_event_loop();
-
     if (reply) {
-        if (microkit_msginfo_get_label(msginfo) == seL4_Fault_DebugException && seL4_GetMR(seL4_DebugException_ExceptionReason) == seL4_SingleStep) {
-            // @alwin: I don't like how this is done
-            n_reply = 1;
-            if (c == ctype_ss) {
-                microkit_mr_set(0, 1);
-            } else {
-                microkit_mr_set(0, 0);
-            }
-        }
-        microkit_fault_reply(microkit_msginfo_new(0, n_reply));
+        microkit_fault_reply(microkit_msginfo_new(0, 0));
     }
 
-    // @alwin: Think more deeply about the difference in semantics between continue and single step. At the moment, they both resume
-    // the whole system, but I think the more correct behaviour may be to resume the whole system with a continue but only resume the
-    // current thread when single stepping.
-    resume_system();
+    gdb_event_loop();
 }
 
 void notified(microkit_channel ch) {

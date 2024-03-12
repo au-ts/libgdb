@@ -210,8 +210,9 @@ static void init_phase2();
 
 // Suspend all the child protection domains
 void suspend_system() {
-    // @alwin: this should be less hardcoded
-    for (int i = 0; i < 2; i++) {
+    // @alwin: There is no guarantee the debugees have consecutive IDs starting
+    // from zero
+    for (int i = 0; i < NUM_DEBUGEES; i++) {
         seL4_TCB_Suspend(BASE_TCB_CAP + i);
     }
 }
