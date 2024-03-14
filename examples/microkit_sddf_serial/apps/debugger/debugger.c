@@ -4,8 +4,8 @@
 #include <util.h>
 #include <libco.h>
 #include <stddef.h>
-#include <serial/util.h>
-#include <serial/shared_ringbuffer.h>
+#include <sddf/serial/util.h>
+#include <sddf/serial/queue.h>
 
 typedef enum event_state {
     eventState_none = 0,
@@ -31,15 +31,15 @@ static char input[BUFSIZE];
 static char output[BUFSIZE];
 
 uintptr_t rx_free;
-uintptr_t rx_used;
+uintptr_t rx_active;
 uintptr_t tx_free;
-uintptr_t tx_used;
+uintptr_t tx_active;
 
 uintptr_t rx_data;
 uintptr_t tx_data;
 
-ring_handle_t rx_ring;
-ring_handle_t tx_ring;
+serial_queue_handle_t rx_queue;
+serial_queue_handle_t tx_queue;
 
 /* The current event state and phase */
 event_state_t state = eventState_none;
@@ -54,7 +54,7 @@ void gdb_puts(char *str) {
     unsigned int buffer_len = 0;
     void *cookie = 0;
 
-    int err = dequeue_free(&tx_ring, &buffer, &buffer_len, &cookie);
+    int err = serial_dequeue_free(&tx_queue, &buffer, &buffer_len);
     if (err) {
         microkit_dbg_puts("Unable to dq from tx free ring");
         return;
@@ -68,8 +68,8 @@ void gdb_puts(char *str) {
 
     memcpy((char *) buffer, str, print_len);
 
-    bool is_empty = ring_empty(tx_ring.used_ring);
-    err = enqueue_used(&tx_ring, buffer, print_len, cookie);
+    bool is_empty = serial_queue_empty(tx_queue.active);
+    err = serial_enqueue_active(&tx_queue, buffer, print_len);
     if (err) {
         microkit_dbg_puts("Unable to enq to tx used ring");
     }
@@ -100,7 +100,7 @@ char gdb_get_char(event_state_t new_state) {
     // Wait for the mxu to tell us some input has come through
     co_switch(t_event);
 
-    int err = dequeue_used(&rx_ring, &buffer, &buffer_len, &cookie);
+    int err = serial_dequeue_active(&rx_queue, &buffer, &buffer_len);
     if (err) {
         microkit_dbg_puts("Failed to get buffer in gdb_get_char()\n");
         return -1;
@@ -108,7 +108,7 @@ char gdb_get_char(event_state_t new_state) {
 
     char c = ((char *) buffer)[0];
 
-    err = enqueue_free(&rx_ring, buffer, buffer_len, NULL);
+    err = serial_enqueue_free(&rx_queue, buffer, buffer_len);
     if (err) {
         microkit_dbg_puts("Failed to put used buffer back into free ring\n");
     }
@@ -252,10 +252,10 @@ void init() {
     /* Set up sDDF ring buffers */
 
     /* Setup rx ring buffers */
-    ring_init(&rx_ring, (ring_buffer_t *) rx_free, (ring_buffer_t *) rx_used, 0, 512, 512);
+    serial_queue_init(&rx_queue, (serial_queue_t *) rx_free, (serial_queue_t *) rx_active, 0, 512, 512);
     /* Add buffers to the rx ring */
-    for (int i = 0; i < NUM_BUFFERS - 1; i++) {
-        int err = enqueue_free(&rx_ring, rx_data + (i * BUFFER_SIZE), BUFFER_SIZE, NULL);
+    for (int i = 0; i < NUM_ENTRIES - 1; i++) {
+        int err = serial_enqueue_free(&rx_queue, rx_data + (i * BUFFER_SIZE), BUFFER_SIZE);
 
         if (err) {
             microkit_dbg_puts("Failed to setup rx ring buffers\n");
@@ -263,10 +263,10 @@ void init() {
     }
 
     /* Setup tx ring buffers */
-    ring_init(&tx_ring, (ring_buffer_t *) tx_free, (ring_buffer_t *) tx_used, 0, 512, 512);
+    serial_queue_init(&tx_queue, (serial_queue_t *) tx_free, (serial_queue_t *) tx_active, 0, 512, 512);
     /* Add buffers to the tx ring */
-    for (int i = 0; i < NUM_BUFFERS - 1; i++) {
-        int err = enqueue_free(&tx_ring, tx_data + (i * BUFFER_SIZE), BUFFER_SIZE, NULL);
+    for (int i = 0; i < NUM_ENTRIES - 1; i++) {
+        int err = serial_enqueue_free(&tx_queue, tx_data + (i * BUFFER_SIZE), BUFFER_SIZE);
 
         if (err) {
             microkit_dbg_puts("Failed to setup tx ring buffers\n");
