@@ -13,7 +13,7 @@ microkit will have to be built using the following sources.
 
 microkit: https://github.com/alwin-joshy/microkit/tree/dev_gdb
 
-seL4: https://github.com/alwin-joshy/seL4/tree/microkit_userspace_gdb
+seL4: https://github.com/alwin-joshy/seL4/tree/microkit_gdb_final
 
 NOTE: These kernel and microkit changes may break other configurations. Use at your own risk.
 
