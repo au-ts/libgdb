@@ -107,8 +107,6 @@ char gdb_get_char(event_state_t new_state) {
     }
 
     char c = ((char *) buffer)[0];
-    // microkit_dbg_putc(c);
-    // microkit_dbg_putc('\n');
 
     err = enqueue_free(&rx_ring, buffer, buffer_len, NULL);
     if (err) {
