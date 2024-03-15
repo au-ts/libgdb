@@ -1,0 +1,25 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "by-gdb",
+            "request": "launch",
+            "name": "Launch(remote)",
+            "debuggerPath" :"/opt/arm-gnu-toolchain-12.3.rel1-darwin-arm64-aarch64-none-elf/bin/aarch64-none-elf-gdb",
+            "program": // Path to ELF being debugged,
+            "cwd": "${workspaceRoot}",
+            "remote": {
+                "enabled": true,
+                "address": // Serial device name,
+                "mode": "remote"
+            },
+            "commandsBeforeExec" : [
+                "set serial baud 115200",
+            ],
+            "stopAtEntry": true,
+        },
+    ]
+}
