@@ -1,7 +1,7 @@
 
 use std::{env, thread};
 use std::io::{self, Read, Write};
-use serialport::{self, SerialPort, TTYPort};
+use serialport::{SerialPort, TTYPort};
 
 fn main() {
     let args : Vec<String> = env::args().collect();
