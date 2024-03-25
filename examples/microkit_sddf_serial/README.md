@@ -68,11 +68,11 @@ aarch64-none-elf-gdb> inferior 2
 aarch64-none-elf-gdb> file bin/pong.elf
 ```
 
-Currently, the debugger component assumes that the IDs for the debugee protection domains starts
-at zero and is consecutive, with NUM_DEBUGEES total PDs being debugged (this is defined in apps/debugger.c).
+The debugger component currently assumes that the IDs for debugee protection domains start
+at zero and are contigious, with NUM_DEBUGEES total PDs being debugged (this is defined in `apps/debugger.c`).
 The is not a limitation of libGDB, but more to do with the difficulty of architecure-dependent configuration
-for microkit-based systems. As microkit is extended with more powerful run-time configuration options,
-this limitation can be removed.
+in microkit-based systems. As microkit is extended with more powerful run-time configuration options,
+this will likely be changed.
 
 One important note about GDB is that you must call continue from the protection domain that caused
 an interrupt into GDB. Since the system is initialized with the current inferior being inferior 1, this
