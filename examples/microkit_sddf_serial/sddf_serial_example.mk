@@ -31,7 +31,7 @@ endif
 MICROKIT_CONFIG := debug
 
 CC := aarch64-none-elf-gcc
-LD := ld
+LD := aarch64-none-elf-ld
 
 MICROKIT_TOOL := $(MICROKIT_SDK)/bin/microkit
 BOARD_DIR := $(MICROKIT_SDK)/board/$(BOARD)/$(MICROKIT_CONFIG)
