@@ -30,7 +30,7 @@ LIBGDB_OBJECTS := $(C_FILES:.c=.o)
 all: libgdb.a clean
 
 libgdb.a: $(LIBGDB_OBJECTS)
-	ar rv $@ $(LIBGDB_OBJECTS)
+	${AR} rvcs $@ $(LIBGDB_OBJECTS)
 
 clean:
 	rm -f $(LIBGDB_OBJECTS)

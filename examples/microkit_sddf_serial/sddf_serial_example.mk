@@ -32,6 +32,7 @@ MICROKIT_CONFIG := debug
 
 CC := aarch64-none-elf-gcc
 LD := aarch64-none-elf-ld
+AR := aarch64-none-elf-ar
 
 MICROKIT_TOOL := $(MICROKIT_SDK)/bin/microkit
 BOARD_DIR := $(MICROKIT_SDK)/board/$(BOARD)/$(MICROKIT_CONFIG)
@@ -69,9 +70,9 @@ all: $(IMAGE_FILE)
 DEBUGGER_OBJS := debugger.o
 
 debugger.o: $(EXAMPLE_DIR)/apps/debugger/debugger.c
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) -c $(CFLAGS) $^ -o $@
 
-debugger.elf: libgdb.a libco.a sddf_libutil.a $(DEBUGGER_OBJS)
+debugger.elf: libgdb.a libco.a sddf_libutil.a debugger.o 
 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
 
 # Make the ping PD
@@ -98,7 +99,7 @@ example.system: ${EXAMPLE_DIR}/example.system
 	cp ${EXAMPLE_DIR}/example.system example.system
 
 $(IMAGE_FILE) $(REPORT_FILE): $(IMAGES) example.system
-	$(MICROKIT_TOOL) example.system --search-path $(BUILD_DIR) --board $(MICROKIT_BOARD) --config $(MICROKIT_CONFIG) -o $(IMAGE_FILE) -r $(REPORT_FILE)
+	$(MICROKIT_TOOL) example.system --search-path $(BUILD_DIR) --board $(BOARD) --config $(MICROKIT_CONFIG) -o $(IMAGE_FILE) -r $(REPORT_FILE)
 
 
 
