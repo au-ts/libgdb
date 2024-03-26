@@ -122,9 +122,9 @@
         <end pd="mux_rx" id="11"/>
     </channel>
 
-    <channel>
+    <!-- <channel>
         <end pd="ping" id="1" />
         <end pd="pong" id="1" />
-    </channel>
+    </channel> -->
 
 </system>

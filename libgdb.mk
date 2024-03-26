@@ -32,7 +32,7 @@ CFLAGS += -I$(MICROKIT_SDK)/board/$(BOARD)/$(MICROKIT_CONFIG)/include \
 		  -Iarch_include
 
 OBJECTS := $(C_FILES:.c=.o)
-NAME := $(BUILD_DIR)/libgdb.a
+# NAME := $(BUILD_DIR)/libgdb.a
 
 all: $(NAME) clean
 
