@@ -16,14 +16,17 @@ ifeq ("$(BOARD)", "odroidc2")
     CPU := "cortex-a53"
     ARCH := "arm"
     MODE := "64"
+    UART_DRIVER := "meson"
 else ifeq ("$(BOARD)", "odroidc4")
     CPU := "cortex-a55"
     ARCH := "arm"
     MODE := "64"
+    UART_DRIVER := "meson"
 else ifeq ("$(BOARD)", "qemu_arm_virt")
     CPU := "cortex-a53"
     ARCH := "arm"
     MODE := "64"
+    UART_DRIVER := "arm"
 else
     $(error Unsupported BOARD ($(BOARD)))
 endif
@@ -37,8 +40,7 @@ AR := aarch64-none-elf-ar
 MICROKIT_TOOL := $(MICROKIT_SDK)/bin/microkit
 BOARD_DIR := $(MICROKIT_SDK)/board/$(BOARD)/$(MICROKIT_CONFIG)
 
-# IMAGES := ping.elf pong.elf debugger.elf uart.elf mux_rx.elf mux_tx.elf
-IMAGES := debugger.elf
+IMAGES := debugger.elf ping.elf pong.elf uart_driver.elf serial_rx_virt.elf serial_tx_virt.elf
 CFLAGS += \
     -mtune=$(CPU) \
     -mstrict-align \
@@ -64,34 +66,31 @@ LIBS := -lmicrokit -Tmicrokit.ld
 IMAGE_FILE := $(BUILD_DIR)/loader.img
 REPORT_FILE := $(BUILD_DIR)/report.txt
 
+SERIAL_NUM_CLIENTS := -DSERIAL_NUM_CLIENTS=1
+
 all: $(IMAGE_FILE)
 
 # Make the debugger PD
-DEBUGGER_OBJS := debugger.o
-
 debugger.o: $(EXAMPLE_DIR)/apps/debugger/debugger.c
 	$(CC) -c $(CFLAGS) $^ -o $@
 
-debugger.elf: libgdb.a libco.a sddf_libutil.a debugger.o 
+debugger.elf: debugger.o libgdb.a libco.a sddf_libutil.a 
 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
 
 # Make the ping PD
-# PING_OBJS := ping.o
+ping.o: $(EXAMPLE_DIR)/apps/ping/ping.c
+	$(CC) -c $(CFLAGS) $^ -o $@
 
-# ping.o: $(EXAMPLE_DIR)/apps/ping/ping.c
-# 	$(CC) $(CFLAGS) $^ -o $@
-
-# ping.elf : $(PING_OBJS) sddf_libutil.a
-# 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
+ping.elf : ping.o sddf_libutil.a
+	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
 
 # Make the pong PD
-# PONG_OBJS := ping.o
 
-# pong.o: $(EXAMPLE_DIR)/apps/pong/pong.c
-# 	$(CC) $(CFLAGS) $^ -o $@
+pong.o: $(EXAMPLE_DIR)/apps/pong/pong.c
+	$(CC) -c $(CFLAGS) $^ -o $@
 
-# pong.elf : $(PONG_OBJS) sddf_libutil.a
-# 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
+pong.elf : pong.o sddf_libutil.a
+	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
 
 # Make the
 
@@ -101,8 +100,13 @@ example.system: ${EXAMPLE_DIR}/example.system
 $(IMAGE_FILE) $(REPORT_FILE): $(IMAGES) example.system
 	$(MICROKIT_TOOL) example.system --search-path $(BUILD_DIR) --board $(BOARD) --config $(MICROKIT_CONFIG) -o $(IMAGE_FILE) -r $(REPORT_FILE)
 
+FORCE:
 
+clean::
+	rm -f debugger.o ping.o pong.o uart_driver.o serial_tx_virt.o serial_rx_virt.o 
 
 include $(LIBGDB_DIR)/libgdb.mk
 include $(SDDF)/libco/libco.mk
 include $(SDDF)/util/util.mk
+include $(SDDF)/drivers/serial/meson/uart.mk
+include $(SDDF)/serial/components/serial_components.mk

@@ -32,5 +32,5 @@ all: libgdb.a clean
 libgdb.a: $(LIBGDB_OBJECTS)
 	${AR} rvcs $@ $(LIBGDB_OBJECTS)
 
-clean:
+clean::
 	rm -f $(LIBGDB_OBJECTS)

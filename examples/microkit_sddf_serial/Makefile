@@ -17,13 +17,13 @@ ifeq ($(strip $(BOARD)),)
 endif
 
 export MICROKIT_SDK := $(realpath ${MICROKIT_SDK})
-export BUILD_DIR ?= $(abspath build)
+export BUILD_DIR ?= $(abspath .)/build
 export BOARD ?= $(BOARD)
 export LIBGDB_DIR := $(abspath ../../)
 export SDDF := $(abspath ../../sddf)
 export EXAMPLE_DIR := $(abspath .)
 
-$(info hello $(LIBGDB_DIR))
+$(info hello $(BUILD_DIR))
 
 CC := aarch64-none-elf-gcc
 LD := aarch64-none-elf-ld

@@ -31,9 +31,9 @@ static char input[BUFSIZE];
 static char output[BUFSIZE];
 
 uintptr_t rx_free;
-uintptr_t rx_used;
+uintptr_t rx_active;
 uintptr_t tx_free;
-uintptr_t tx_used;
+uintptr_t tx_active;
 
 uintptr_t rx_data;
 uintptr_t tx_data;
@@ -252,7 +252,7 @@ void init() {
     /* Set up sDDF ring buffers */
 
     /* Setup rx ring buffers */
-    serial_queue_init(&rx_queue, (serial_queue_t *) rx_free, (serial_queue_t *) rx_used, 0, 512, 512);
+    serial_queue_init(&rx_queue, (serial_queue_t *) rx_free, (serial_queue_t *) rx_active, 0, 512, 512);
     /* Add buffers to the rx ring */
     for (int i = 0; i < NUM_ENTRIES - 1; i++) {
         int err = serial_enqueue_free(&rx_queue, rx_data + (i * BUFFER_SIZE), BUFFER_SIZE);
@@ -263,7 +263,7 @@ void init() {
     }
 
     /* Setup tx ring buffers */
-    serial_queue_init(&tx_queue, (serial_queue_t *) tx_free, (serial_queue_t *) tx_used, 0, 512, 512);
+    serial_queue_init(&tx_queue, (serial_queue_t *) tx_free, (serial_queue_t *) tx_active, 0, 512, 512);
     /* Add buffers to the tx ring */
     for (int i = 0; i < NUM_ENTRIES - 1; i++) {
         int err = serial_enqueue_free(&tx_queue, tx_data + (i * BUFFER_SIZE), BUFFER_SIZE);
