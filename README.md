@@ -4,22 +4,36 @@
 
 This is an experimental library that aims to provide debugger support for seL4 based systems. It is being developed
 primarily for use with the seL4 microkit but has been implemented as a library that can be used on other
-seL4-based systems. It has only been tested on the odroidc2 but should work on any aarch64 platform.
+seL4-based systems. It has been tested most on the odroidc2 platform but has also been used on odroidc4 and
+qemu-arm-virt, and should work with any other aarch64 platform.
+
+The library is generally used in combination with a *debugger* component, which has holds thread control block
+(TCB) and VSpace capabilities of the threads which are to be debugged. It is also expected to be the
+fault handler for these threads. The main responsibilities of the debugger component are to initialize the
+state in libGDB by registering inferiors, handle communication between the host machine (running GDB) and
+libGDB, and pass along faults to the library.
+
+This repository contains two examples - `microkit_sddf_serial` and `microkit_integrated_serial`.
+
+These two examples show different ways that a debugger can be implemented. `microkit_integrated_serial`
+uses an internal polling UART driver for input whereas `microkit_sddf_serial` is sDDF-compliant and 
+contains an sDDF subsystem with a separate UART driver as well as recieve and transmit virtualisers.
 
 ## Dependencies
 
 This library depends on seL4 and microkit changes that have not yet been upstreamed. As such, a custom version of the
 microkit will have to be built using the following sources.
 
-microkit: https://github.com/alwin-joshy/microkit/tree/dev_gdb
+microkit: [https://github.com/alwin-joshy/microkit/tree/dev\_gdb](https://github.com/alwin-joshy/microkit/tree/dev_gdb)
 
-seL4: https://github.com/alwin-joshy/seL4/tree/microkit_gdb_final
+seL4: [https://github.com/alwin-joshy/seL4/tree/microkit\_gdb\_final](https://github.com/alwin-joshy/seL4/tree/microkit_gdb_final)
 
 NOTE: These kernel and microkit changes may break other configurations. Use at your own risk.
 
 ## Using libgdb
 
-libgdb currently has an external dependency on microkit which it depends on for seL4 related information.
-To use it in your project, you just need to include the library, ensuring that it has been added to your
-base CMakeLists.txt and ensuring that it has access to the microkit library. An example of this can be 
-seen in examples/microkit_sddf_serial.
+We provide both a CMakeLists.txt and libgdb.mk Makefile snippet. To see how either can be
+used, look at the `microkit_integrated_serial` and `microkit_sddf_serial` examples respectively.
+
+As mentioned before, libGDB was primarily designed for use with the seL4 Microkit, but should be simple
+to port to other frameworks. It currently depends on Microkit for seL4-related infomation.

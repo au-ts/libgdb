@@ -8,10 +8,6 @@ ifeq ($(strip $(MICROKIT_SDK)),)
 $(error MICROKIT_SDK must be specified)
 endif
 
-# ifeq ($(strip $(LIBGCC)),)
-# LIBGCC := $(shell dirname $$(aarch64-none-elf-gcc --print-file-name libgcc.a))
-# endif
-
 ifeq ($(strip $(BOARD)),)
     $(error libGDB requires a BOARD)
 endif

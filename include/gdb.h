@@ -1,6 +1,9 @@
-//
-// Created by Alwin Joshy on 22/1/2024.
-//
+/*
+ * Copyright 2024, UNSW
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
 #pragma once
 
 // @alwin: Ideally this shouldn't depend on microkit
