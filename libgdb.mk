@@ -12,32 +12,25 @@ ifeq ($(strip $(BOARD)),)
     $(error libGDB requires a BOARD)
 endif
 
-ifeq ($(strip $(BUILD_DIR)),)
-    $(error libGDB requires a BUILD_DIR)
-endif
-
 ifeq ($(strip $(MICROKIT_CONFIG)),)
     $(error libGDB requires a MICROKIT_CONFIG)
 endif
 
 
-AARCH64_FILES := src/arch/arm/64/gdb.c
-ARCH_INDEP_FILES := src/gdb.c \
-					src/util.c \
-					src/printf.c
+AARCH64_FILES := $(LIBGDB_DIR)/src/arch/arm/64/gdb.c
+ARCH_INDEP_FILES := $(addprefix $(LIBGDB_DIR)/src/, gdb.c util.c printf.c)
 C_FILES := $(AARCH64_FILES) $(ARCH_INDEP_FILES)
 
 CFLAGS += -I$(MICROKIT_SDK)/board/$(BOARD)/$(MICROKIT_CONFIG)/include \
 		  -Iinclude \
 		  -Iarch_include
 
-OBJECTS := $(C_FILES:.c=.o)
-# NAME := $(BUILD_DIR)/libgdb.a
+LIBGDB_OBJECTS := $(C_FILES:.c=.o)
 
-all: $(NAME) clean
+all: libgdb.a clean
 
-$(BUILD_DIR)/libgdb.a: $(OBJECTS)
-	ar rv $@ $(OBJECTS)
+libgdb.a: $(LIBGDB_OBJECTS)
+	ar rv $@ $(LIBGDB_OBJECTS)
 
 clean:
-	rm -f $(OBJECTS)
+	rm -f $(LIBGDB_OBJECTS)

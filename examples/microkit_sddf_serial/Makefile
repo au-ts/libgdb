@@ -8,9 +8,9 @@ ifeq ($(strip $(MICROKIT_SDK)),)
 $(error MICROKIT_SDK must be specified)
 endif
 
-ifeq ($(strip $(LIBGCC)),)
-LIBGCC := $(shell dirname $$(aarch64-none-elf-gcc --print-file-name libgcc.a))
-endif
+# ifeq ($(strip $(LIBGCC)),)
+# LIBGCC := $(shell dirname $$(aarch64-none-elf-gcc --print-file-name libgcc.a))
+# endif
 
 ifeq ($(strip $(BOARD)),)
     $(error libGDB requires a BOARD)
@@ -19,9 +19,11 @@ endif
 export MICROKIT_SDK := $(realpath ${MICROKIT_SDK})
 export BUILD_DIR ?= $(abspath build)
 export BOARD ?= $(BOARD)
-export LIBGDB_DIR := $(abspath ../..)
+export LIBGDB_DIR := $(abspath ../../)
 export SDDF := $(abspath ../../sddf)
 export EXAMPLE_DIR := $(abspath .)
+
+$(info hello $(LIBGDB_DIR))
 
 CC := aarch64-none-elf-gcc
 LD := aarch64-none-elf-ld

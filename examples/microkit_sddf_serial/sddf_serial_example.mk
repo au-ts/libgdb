@@ -31,7 +31,7 @@ endif
 MICROKIT_CONFIG := debug
 
 CC := aarch64-none-elf-gcc
-LD := aarch64-none-elf-ld
+LD := ld
 
 MICROKIT_TOOL := $(MICROKIT_SDK)/bin/microkit
 BOARD_DIR := $(MICROKIT_SDK)/board/$(BOARD)/$(MICROKIT_CONFIG)
@@ -52,6 +52,7 @@ CFLAGS += \
     -DBOARD_${BOARD} \
     -I$(BOARD_DIR)/include \
     -I$(SDDF)/include \
+    -I$(SDDF)/libco \
     -I$(LIBGDB_DIR)/include \
     -I$(LIBGDB_DIR)/arch_include/ \
     -I$(LIBGDB_DIR)/lib/libco/include \
@@ -70,7 +71,7 @@ DEBUGGER_OBJS := debugger.o
 debugger.o: $(EXAMPLE_DIR)/apps/debugger/debugger.c
 	$(CC) $(CFLAGS) $^ -o $@
 
-debugger.elf: $(BUILD_DIR)/libgdb.a libco.a sddf_libutil.a $(DEBUGGER_OBJS)
+debugger.elf: libgdb.a libco.a sddf_libutil.a $(DEBUGGER_OBJS)
 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
 
 # Make the ping PD
@@ -91,13 +92,16 @@ debugger.elf: $(BUILD_DIR)/libgdb.a libco.a sddf_libutil.a $(DEBUGGER_OBJS)
 # pong.elf : $(PONG_OBJS) sddf_libutil.a
 # 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
 
-# Make the 
+# Make the
+
+example.system: ${EXAMPLE_DIR}/example.system
+	cp ${EXAMPLE_DIR}/example.system example.system
+
+$(IMAGE_FILE) $(REPORT_FILE): $(IMAGES) example.system
+	$(MICROKIT_TOOL) example.system --search-path $(BUILD_DIR) --board $(MICROKIT_BOARD) --config $(MICROKIT_CONFIG) -o $(IMAGE_FILE) -r $(REPORT_FILE)
 
 
-$(IMAGE_FILE) $(REPORT_FILE): $(IMAGES) vmm.system
-	$(MICROKIT_TOOL) vmm.system --search-path $(BUILD_DIR) --board $(MICROKIT_BOARD) --config $(MICROKIT_CONFIG) -o $(IMAGE_FILE) -r $(REPORT_FILE)
 
 include $(LIBGDB_DIR)/libgdb.mk
-include $(LIBGDB_DIR)/lib/libco/libco.mk
+include $(SDDF)/libco/libco.mk
 include $(SDDF)/util/util.mk
-
