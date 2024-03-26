@@ -2,23 +2,22 @@
 
 ## Description
 
-This example uses sDDF serial to allow the debugger component to send/recieve information.
-It was developed and tested on the odroidc2 platform but should also work on the odroidc4
-if the example.system file is adjusted to reference the appropriate physical address for the
-UART device.
+This example uses the sDDF serial subsystem to allow the debugger component 
+to send/recieve information between the target and GDB.
 
 ## How to build
 
 ```
-mkdir build && cd build
-cmake -DMICROKIT_SDK=PATH_TO_SDK -DBOARD="odroidc2" ..
-make
+make MICROKIT_SDK=PATH_TO_SDK BOARD=BOARD_NAME
 ```
+
+This will create `build/loader.img`, which is a microkit image that can be run on
+the target machine.
 
 ## Currently supported boards
 
-The boards that have been tested to work are`[odroidc4, odroidc2, qemu_arm_virt]`. To switch between the two,
-you may need to adjust the `example.system` file as necesssary. 
+The boards that have been tested to work are`[odroidc4, odroidc2, qemu_arm_virt]`. To switch between 
+examples, you will need to adjust the `example.system` file as necessary. 
 
 ### QEMU booting instructions
 
@@ -32,7 +31,7 @@ qemu-system-aarch64 \
        -device loader,file=bin/loader.img,addr=0x70000000,cpu-num=0
 ```
 
-This configuration will redirect the output to a virtual cosnole, which you can connect GDB to.
+This configuration will redirect the output to a virtual console, which you can connect GDB to.
 Note: The serial demux tool does not currently allow you to operate on virtual consoles.
 
 ## How to use 

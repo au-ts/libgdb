@@ -1,3 +1,8 @@
+/*
+ * Copyright 2024, UNSW
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
 
 use std::{env, thread};
 use std::io::{self, Read, Write};

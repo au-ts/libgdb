@@ -1,3 +1,9 @@
+/*
+ * Copyright 2024, UNSW
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
 #include <arch/arm/64/gdb.h>
 #include <util.h>
 #include <sel4/constants.h>

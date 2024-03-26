@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <system>
+    <!-- odroidc2 -->
 	<memory_region name="uart" size="0x1000" phys_addr="0xc8100000" />
+
+    <!-- odroidc4 -->
+    <!-- <memory_region name="uart" size="0x1_000" phys_addr="0xff803000" /> -->
 
     <protection_domain name="debugger" priority="254">
         <program_image path="debugger.elf" />
