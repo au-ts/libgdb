@@ -1,3 +1,9 @@
+#
+# Copyright 2023, UNSW
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
+
 ifeq ($(strip $(MICROKIT_SDK)),)
     $(error libGDB requires a MICROKIT_SDK)
 endif
@@ -9,8 +15,6 @@ endif
 ifeq ($(strip $(BUILD_DIR)),)
     $(error libGDB requires a BUILD_DIR)
 endif
-
-$(echo "hello $BOARD")
 
 ifeq ("$(BOARD)", "odroidc2")
     CPU := "cortex-a53"
@@ -66,6 +70,7 @@ LIBS := -lmicrokit -Tmicrokit.ld
 IMAGE_FILE := $(BUILD_DIR)/loader.img
 REPORT_FILE := $(BUILD_DIR)/report.txt
 
+# Required by the serial virtualisers
 SERIAL_NUM_CLIENTS := -DSERIAL_NUM_CLIENTS=1
 
 all: $(IMAGE_FILE)
@@ -74,7 +79,7 @@ all: $(IMAGE_FILE)
 debugger.o: $(EXAMPLE_DIR)/apps/debugger/debugger.c
 	$(CC) -c $(CFLAGS) $^ -o $@
 
-debugger.elf: debugger.o libgdb.a libco.a sddf_libutil.a 
+debugger.elf: debugger.o libgdb.a libco.a sddf_libutil.a
 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
 
 # Make the ping PD
@@ -91,8 +96,6 @@ pong.o: $(EXAMPLE_DIR)/apps/pong/pong.c
 
 pong.elf : pong.o sddf_libutil.a
 	$(LD) $(LDFLAGS) $^ $(LIBS) -o $@
-
-# Make the
 
 example.system: ${EXAMPLE_DIR}/example.system
 	cp ${EXAMPLE_DIR}/example.system example.system

@@ -19,8 +19,6 @@ export LIBGDB_DIR := $(abspath ../../)
 export SDDF := $(abspath ../../sddf)
 export EXAMPLE_DIR := $(abspath .)
 
-$(info hello $(BUILD_DIR))
-
 CC := aarch64-none-elf-gcc
 LD := aarch64-none-elf-ld
 MICROKIT_TOOL ?= $(MICROKIT_SDK)/bin/microkit
