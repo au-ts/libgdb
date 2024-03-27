@@ -108,5 +108,5 @@ clean::
 include $(LIBGDB_DIR)/libgdb.mk
 include $(SDDF)/libco/libco.mk
 include $(SDDF)/util/util.mk
-include $(SDDF)/drivers/serial/meson/uart.mk
+include $(SDDF)/drivers/serial/$(UART_DRIVER)/uart.mk
 include $(SDDF)/serial/components/serial_components.mk
