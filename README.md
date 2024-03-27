@@ -28,6 +28,11 @@ microkit: [https://github.com/alwin-joshy/microkit/tree/dev\_gdb](https://github
 
 seL4: [https://github.com/alwin-joshy/seL4/tree/microkit\_gdb\_final](https://github.com/alwin-joshy/seL4/tree/microkit_gdb_final)
 
+The examples depend on the `aarch64-none-elf` toolchain for compilation, and libGDB has only been tested with `aarch64-none-elf-gdb`,
+though any GDB that has architecture support for aarch64 should suffice.
+
+The serial-demux tool depends on the Rust toolchain.
+
 NOTE: These kernel and microkit changes may break other configurations. Use at your own risk.
 
 ## Using libgdb
