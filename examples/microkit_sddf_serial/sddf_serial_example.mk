@@ -17,20 +17,20 @@ ifeq ($(strip $(BUILD_DIR)),)
 endif
 
 ifeq ("$(BOARD)", "odroidc2")
-    CPU := "cortex-a53"
-    ARCH := "arm"
-    MODE := "64"
-    UART_DRIVER := "meson"
+    CPU := cortex-a53
+    ARCH := arm
+    MODE := 64
+    UART_DRIVER := meson
 else ifeq ("$(BOARD)", "odroidc4")
-    CPU := "cortex-a55"
-    ARCH := "arm"
-    MODE := "64"
-    UART_DRIVER := "meson"
+    CPU := cortex-a55
+    ARCH := arm
+    MODE := 64
+    UART_DRIVER := meson
 else ifeq ("$(BOARD)", "qemu_arm_virt")
-    CPU := "cortex-a53"
-    ARCH := "arm"
-    MODE := "64"
-    UART_DRIVER := "arm"
+    CPU := cortex-a53
+    ARCH := arm
+    MODE := 64
+    UART_DRIVER := arm
 else
     $(error Unsupported BOARD ($(BOARD)))
 endif
@@ -106,7 +106,7 @@ $(IMAGE_FILE) $(REPORT_FILE): $(IMAGES) example.system
 FORCE:
 
 clean::
-	rm -f debugger.o ping.o pong.o uart_driver.o serial_tx_virt.o serial_rx_virt.o 
+	rm -f debugger.o ping.o pong.o uart_driver.o serial_tx_virt.o serial_rx_virt.o
 
 include $(LIBGDB_DIR)/libgdb.mk
 include $(SDDF)/libco/libco.mk

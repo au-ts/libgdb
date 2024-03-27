@@ -94,17 +94,16 @@ void gdb_put_char(char c) {
 }
 
 char gdb_get_char(event_state_t new_state) {
-    microkit_notify(GETCHAR_CHANNEL);
-
     uintptr_t buffer = 0;
     unsigned int buffer_len = 0;
     void *cookie = 0;
 
-    // @alwin: check dis
-    state = new_state;
 
-    // Wait for the mxu to tell us some input has come through
-    co_switch(t_event);
+    while (serial_queue_empty(rx_queue.active)) {
+        // Wait for the virt to tell us some input has come through
+        state = new_state;
+        co_switch(t_event);
+    }
 
     int err = serial_dequeue_active(&rx_queue, &buffer, &buffer_len);
     if (err) {
