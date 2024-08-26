@@ -108,11 +108,11 @@ char *hex2regs(seL4_UserContext *regs, char *buf)
     return buf;
 }
 
-bool set_software_breakpoint(inferior_t *inferior, seL4_Word address) {
+bool set_software_breakpoint(gdb_thread_t *thread, seL4_Word address) {
     sw_break_t tmp;
     tmp.addr = address;
 
-    seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(inferior->vspace, address);
+    seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(thread->inferior->vspace, address);
     if (ret.error) {
         return false;
     }
@@ -121,34 +121,34 @@ bool set_software_breakpoint(inferior_t *inferior, seL4_Word address) {
     /* Overwrite the address with the instruction but preserve everything else */
     ret.value = (seL4_Word) AARCH64_BREAK_KGDB_DYN_DBG | (0xFFFFFFFF00000000 & ret.value);
 
-    if (seL4_ARM_VSpace_Write_Word(inferior->vspace, address, ret.value)) {
+    if (seL4_ARM_VSpace_Write_Word(thread->inferior->vspace, address, ret.value)) {
         return false;
     }
 
     int i = 0;
     for (i = 0; i < MAX_SW_BREAKS; i++) {
-        if (inferior->software_breakpoints[i].addr == 0) {
-            inferior->software_breakpoints[i] = tmp;
+        if (thread->software_breakpoints[i].addr == 0) {
+            thread->software_breakpoints[i] = tmp;
             return true;
         }
     }
 
     /* Too many sw breakpoints have been set */
     // @alwin: return value
-    seL4_ARM_VSpace_Write_Word(inferior->vspace, address, tmp.orig_word);
+    seL4_ARM_VSpace_Write_Word(thread->inferior->vspace, address, tmp.orig_word);
     return false;
 }
 
-bool unset_software_breakpoint(inferior_t *inferior, seL4_Word address) {
+bool unset_software_breakpoint(gdb_thread_t *thread, seL4_Word address) {
     int i = 0;
 
     for (i = 0; i < MAX_SW_BREAKS; i++) {
-        if (inferior->software_breakpoints[i].addr == address) {
-            int err = seL4_ARM_VSpace_Write_Word(inferior->vspace,
+        if (thread->software_breakpoints[i].addr == address) {
+            int err = seL4_ARM_VSpace_Write_Word(thread->inferior->vspace,
                                                  address,
-                                                 inferior->software_breakpoints[i].orig_word);
+                                                 thread->software_breakpoints[i].orig_word);
             if (!err) {
-                inferior->software_breakpoints[i].addr = 0;
+                thread->software_breakpoints[i].addr = 0;
             }
 
             /* If err == 0, we want to return true (success), else return false (failiure) */
@@ -160,91 +160,91 @@ bool unset_software_breakpoint(inferior_t *inferior, seL4_Word address) {
     return true;
 }
 
-bool set_hardware_breakpoint(inferior_t *inferior, seL4_Word address) {
+bool set_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address) {
     int i = 0;
     for (i = 0; i < seL4_NumExclusiveBreakpoints; i++) {
-        if (!inferior->hardware_breakpoints[i].addr) break;
+        if (!thread->hardware_breakpoints[i].addr) break;
     }
 
     if (i == seL4_NumExclusiveBreakpoints) return false;
 
-    seL4_TCB_SetBreakpoint(inferior->tcb, seL4_FirstBreakpoint + i, address,
+    seL4_TCB_SetBreakpoint(thread->tcb, seL4_FirstBreakpoint + i, address,
                            seL4_InstructionBreakpoint, 0, seL4_BreakOnRead);
 
     // @alwin check ret value
     return true;
 }
 
-bool unset_hardware_breakpoint(inferior_t *inferior, seL4_Word address) {
+bool unset_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address) {
     int i = 0;
     for (i = 0; i < seL4_NumExclusiveBreakpoints; i++) {
-        if (inferior->hardware_breakpoints[i].addr == address) {
-            inferior->hardware_breakpoints[i].addr = 0;
+        if (thread->hardware_breakpoints[i].addr == address) {
+            thread->hardware_breakpoints[i].addr = 0;
             break;
         }
     }
 
     if (i == seL4_NumExclusiveBreakpoints) return false;
 
-    seL4_TCB_UnsetBreakpoint(inferior->tcb, seL4_FirstBreakpoint + i);
+    seL4_TCB_UnsetBreakpoint(thread->tcb, seL4_FirstBreakpoint + i);
     return true;
 }
 
-bool set_hardware_watchpoint(inferior_t *inferior, seL4_Word address,
+bool set_hardware_watchpoint(gdb_thread_t *thread, seL4_Word address,
                              seL4_BreakpointAccess type) {
     int i = 0;
     for (i = 0; i < seL4_NumExclusiveWatchpoints; i++) {
-        if (!inferior->hardware_watchpoints[i].addr) break;
+        if (!thread->hardware_watchpoints[i].addr) break;
     }
 
     if (i == seL4_NumExclusiveWatchpoints) return false;
 
     // @alwin: check ret value
-    seL4_TCB_SetBreakpoint(inferior->tcb, seL4_FirstWatchpoint + i, address,
+    seL4_TCB_SetBreakpoint(thread->tcb, seL4_FirstWatchpoint + i, address,
                            seL4_DataBreakpoint, 0, type);
 
     return true;
 }
 
-bool unset_hardware_watchpoint(inferior_t *inferior, seL4_Word address,
+bool unset_hardware_watchpoint(gdb_thread_t *thread, seL4_Word address,
                                seL4_BreakpointAccess type) {
     int i = 0;
     for (i = 0; i < seL4_NumExclusiveWatchpoints; i++) {
-        if (inferior->hardware_watchpoints[i].addr == address &&
-            inferior->hardware_watchpoints[i].type == type) {
+        if (thread->hardware_watchpoints[i].addr == address &&
+            thread->hardware_watchpoints[i].type == type) {
 
-            inferior->hardware_watchpoints[i].addr = 0;
+            thread->hardware_watchpoints[i].addr = 0;
             break;
         }
     }
 
     if (i == seL4_NumExclusiveWatchpoints) return false;
 
-    seL4_TCB_UnsetBreakpoint(inferior->tcb, seL4_FirstWatchpoint + i);
+    seL4_TCB_UnsetBreakpoint(thread->tcb, seL4_FirstWatchpoint + i);
     return true;
 }
 
-bool enable_single_step(inferior_t *inferior) {
+bool enable_single_step(gdb_thread_t *thread) {
     // @alwin: Remove this check so we can override a thread we already replied to. Is this safe?
     // if (inferior->ss_enabled) {
     //     return false;
     // }
 
-    seL4_TCB_ConfigureSingleStepping(inferior->tcb, 0, 1);
+    seL4_TCB_ConfigureSingleStepping(thread->tcb, 0, 1);
     return true;
 }
 
-bool disable_single_step(inferior_t *inferior) {
+bool disable_single_step(gdb_thread_t *thread) {
     // @alwin: Remove this check so we can override a thread we already replied to. Is this safe?
     // if (!inferior->ss_enabled) {
     //     return false;
     // }
 
-    seL4_TCB_ConfigureSingleStepping(inferior->tcb, 0, 0);
+    seL4_TCB_ConfigureSingleStepping(thread->tcb, 0, 0);
     return true;
 }
 
- char *inf_mem2hex(inferior_t *inferior, seL4_Word mem, char *buf, int size, seL4_Word *error)
+ char *inf_mem2hex(gdb_thread_t *thread, seL4_Word mem, char *buf, int size, seL4_Word *error)
 {
     int i;
     unsigned char c;
@@ -252,7 +252,7 @@ bool disable_single_step(inferior_t *inferior) {
     seL4_Word curr_word = 0;
     for (i = 0; i < size; i++) {
         if (i % sizeof(seL4_Word) == 0) {
-            seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(inferior->vspace, mem);
+            seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(thread->inferior->vspace, mem);
             if (ret.error) {
                 *error = ret.error;
                 return NULL;
@@ -275,7 +275,7 @@ bool disable_single_step(inferior_t *inferior) {
  * Returns a ptr to the char after last memory byte written
  *  or NULL on error (cannot write memory)
  */
-seL4_Word inf_hex2mem(inferior_t *inferior, char *buf, seL4_Word mem, int size)
+seL4_Word inf_hex2mem(gdb_thread_t *thread, char *buf, seL4_Word mem, int size)
 {
     int i;
     unsigned char c;
@@ -283,7 +283,7 @@ seL4_Word inf_hex2mem(inferior_t *inferior, char *buf, seL4_Word mem, int size)
     seL4_Word curr_word = 0;
     for (i = 0; i < size; i++, mem++) {
         if (i % sizeof(seL4_Word) == 0) {
-            seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(inferior->vspace, mem);
+            seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(thread->inferior->vspace, mem);
             if (ret.error) {
                 return (mem + i);
             }
@@ -296,7 +296,7 @@ seL4_Word inf_hex2mem(inferior_t *inferior, char *buf, seL4_Word mem, int size)
         *(((char *) &curr_word) + (i % sizeof(seL4_Word))) = c;
 
         if (i % sizeof(seL4_Word) == sizeof(seL4_Word) - 1 || i == size - 1) {
-            int err = seL4_ARM_VSpace_Write_Word(inferior->vspace, mem + (i/sizeof(seL4_Word)), curr_word);
+            int err = seL4_ARM_VSpace_Write_Word(thread->inferior->vspace, mem + (i/sizeof(seL4_Word)), curr_word);
             if (err) {
                 return (mem + i);
             }

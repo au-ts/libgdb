@@ -2,37 +2,37 @@
 
 static char hexchars[] = "0123456789abcdef";
 
-seL4_Word strlcpy(char *dest, const char *src, seL4_Word size)
-{
-    seL4_Word len;
-    for (len = 0; len + 1 < size && src[len]; len++) {
-        dest[len] = src[len];
-    }
-    dest[len] = '\0';
-    return len;
-}
+// seL4_Word strlcpy(char *dest, const char *src, seL4_Word size)
+// {
+//     seL4_Word len;
+//     for (len = 0; len + 1 < size && src[len]; len++) {
+//         dest[len] = src[len];
+//     }
+//     dest[len] = '\0';
+//     return len;
+// }
 
-int PURE strncmp(const char *s1, const char *s2, int n)
-{
-    seL4_Word i;
-    int diff;
+// int PURE strncmp(const char *s1, const char *s2, int n)
+// {
+//     seL4_Word i;
+//     int diff;
 
-    for (i = 0; i < n; i++) {
-        diff = ((unsigned char *)s1)[i] - ((unsigned char *)s2)[i];
-        if (diff != 0 || s1[i] == '\0') {
-            return diff;
-        }
-    }
+//     for (i = 0; i < n; i++) {
+//         diff = ((unsigned char *)s1)[i] - ((unsigned char *)s2)[i];
+//         if (diff != 0 || s1[i] == '\0') {
+//             return diff;
+//         }
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
-seL4_Word strnlen(const char *s, seL4_Word maxlen)
-{
-    seL4_Word len;
-    for (len = 0; len < maxlen && s[len]; len++);
-    return len;
-}
+// seL4_Word strnlen(const char *s, seL4_Word maxlen)
+// {
+//     seL4_Word len;
+//     for (len = 0; len < maxlen && s[len]; len++);
+//     return len;
+// }
 
 
 #define UCHAR_MAX 255

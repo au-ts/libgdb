@@ -7,10 +7,19 @@
 #pragma once
 
 // @alwin: Ideally this shouldn't depend on microkit
+#
+#ifdef MICROKIT
 #include <microkit.h>
+#else
+#include <sel4/sel4.h>
+#include <sel4/constants.h>
+#include <stdint.h>
+#include <stdbool.h>
+#endif /* MICROKIT */
 #include <sel4/sel4_arch/types.h>
 
 #define MAX_PDS 64
+#define MAX_THREADS 64
 #define MAX_ELF_NAME 32
 #define MAX_SW_BREAKS 10
 
@@ -34,24 +43,44 @@ typedef struct sw_breakpoint {
     uint64_t orig_word;
 } sw_break_t;
 
-/* GDB uses 'inferiors' to distinguish between different processes (in our case PDs) */
-typedef struct inferior {
+struct inferior;
+typedef struct inferior gdb_inferior_t;
+
+/* Each inferior can also have multiple threads within it */
+typedef struct thread {
     bool enabled;
     bool wakeup;
-    uint8_t id;
-    /* The id in GDB cannot be 0, because this has a special meaning in GDB */
+    bool ss_enabled;
+    gdb_inferior_t *inferior;
+    /* The id is something provided by the remote and is used to identify a thread when something such
+       as a fault occurs */
+    uint16_t id;
+    /* The gdb_id is internal to GDB and is used for ease of implementation and efficiency reasons.
+       This is the id that is told to GDB. */
     uint16_t gdb_id;
     seL4_CPtr tcb;
-    seL4_CPtr vspace;
     sw_break_t software_breakpoints[MAX_SW_BREAKS];
     hw_break_t hardware_breakpoints[seL4_NumExclusiveBreakpoints];
     hw_watch_t hardware_watchpoints[seL4_NumExclusiveWatchpoints];
-    bool ss_enabled;
-} inferior_t;
+} gdb_thread_t;
+
+/* GDB uses 'inferiors' to distinguish between different processes (in our case PDs) */
+struct inferior {
+    bool enabled;
+    /* The id is something provided by the remote and is used to identify a thread when something such
+       as a fault occurs */
+    uint16_t id;
+    /* The gdb_id is internal to GDB and is used for ease of implementation and efficiency reasons.
+       This is the id that is told to GDB. */
+    uint16_t gdb_id;
+    seL4_CPtr vspace;
+    int num_threads;
+    gdb_thread_t threads[64];
+};
 
 /* We expose the current target inferior to users of the library */
-extern inferior_t *target_inferior;
-extern inferior_t inferiors[MAX_PDS];
+extern gdb_thread_t *target_thread;
+extern gdb_inferior_t inferiors[MAX_PDS];
 
 typedef enum continue_type {
     ctype_dont = 0,
@@ -59,19 +88,19 @@ typedef enum continue_type {
     ctype_ss,
 } cont_type_t;
 
-bool set_software_breakpoint(inferior_t *inferior, seL4_Word address);
-bool unset_software_breakpoint(inferior_t *inferior, seL4_Word address);
+bool set_software_breakpoint(gdb_thread_t *inferior, seL4_Word address);
+bool unset_software_breakpoint(gdb_thread_t *inferior, seL4_Word address);
 
-bool set_hardware_breakpoint(inferior_t *inferior, seL4_Word address);
-bool unset_hardware_breakpoint(inferior_t *inferior, seL4_Word address);
+bool set_hardware_breakpoint(gdb_thread_t *inferior, seL4_Word address);
+bool unset_hardware_breakpoint(gdb_thread_t *inferior, seL4_Word address);
 
-bool set_hardware_watchpoint(inferior_t *inferior, seL4_Word address,
+bool set_hardware_watchpoint(gdb_thread_t *inferior, seL4_Word address,
                              seL4_BreakpointAccess type);
-bool unset_hardware_watchpoint(inferior_t *inferior, seL4_Word address,
+bool unset_hardware_watchpoint(gdb_thread_t *inferior, seL4_Word address,
                                seL4_BreakpointAccess type);
 
-bool enable_single_step(inferior_t *inferior);
-bool disable_single_step(inferior_t *inferior);
+bool enable_single_step(gdb_thread_t *inferior);
+bool disable_single_step(gdb_thread_t *inferior);
 
 /* Convert registers to a hex string */
 char *regs2hex(seL4_UserContext *regs, char *buf);
@@ -79,13 +108,15 @@ char *regs2hex(seL4_UserContext *regs, char *buf);
 /* Convert registers to a hex string */
 char *hex2regs(seL4_UserContext *regs, char *buf);
 
-char *inf_mem2hex(inferior_t *inferior, seL4_Word mem, char *buf, int size, seL4_Word *error);
-seL4_Word inf_hex2mem(inferior_t *inferior, char *buf, seL4_Word mem, int size);
+char *inf_mem2hex(gdb_thread_t *inferior, seL4_Word mem, char *buf, int size, seL4_Word *error);
+seL4_Word inf_hex2mem(gdb_thread_t *inferior, char *buf, seL4_Word mem, int size);
 
-int gdb_register_inferior(uint8_t id, seL4_CPtr tcb, seL4_CPtr vspace);
+gdb_inferior_t *gdb_register_inferior(uint8_t id, seL4_CPtr vspace);
+gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint8_t id, seL4_CPtr tcb);
+void gdb_thread_spawn(gdb_thread_t *thread, char *output);
 // int gdb_register_inferior_fork(uint8_t id, char *output);
 // int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
-bool gdb_handle_fault(uint8_t id, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
+bool gdb_handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
 
 bool gdb_handle_packet(char *input, char *output);
 
