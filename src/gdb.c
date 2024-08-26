@@ -40,7 +40,7 @@ static void handle_write_regs(char *ptr, char* output) {
 }
 
 // @alwin: Make this safe
-static char write_thread_id(gdb_thread_t *thread, char *ptr, int len) {
+static char *write_thread_id(gdb_thread_t *thread, char *ptr, int len) {
     *(ptr++) = 'p';
     ptr = mem2hex((char *) &thread->inferior->gdb_id, ptr, sizeof(uint8_t));
     *(ptr++) = '.';
@@ -464,8 +464,6 @@ void handle_vcont(char *input, char *output) {
             }
         } while (*input == ':');
     }
-
-    printf("Done with vcont\n");
 }
 
 bool gdb_handle_packet(char *input, char *output) {
