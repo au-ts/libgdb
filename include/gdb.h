@@ -74,7 +74,7 @@ struct inferior {
        This is the id that is told to GDB. */
     uint16_t gdb_id;
     seL4_CPtr vspace;
-    int num_threads;
+    int curr_thread_idx;
     gdb_thread_t threads[64];
 };
 
@@ -114,6 +114,8 @@ seL4_Word inf_hex2mem(gdb_thread_t *inferior, char *buf, seL4_Word mem, int size
 gdb_inferior_t *gdb_register_inferior(uint8_t id, seL4_CPtr vspace);
 gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint8_t id, seL4_CPtr tcb);
 void gdb_thread_spawn(gdb_thread_t *thread, char *output);
+void gdb_thread_exit(gdb_thread_t *thread, char *output);
+
 // int gdb_register_inferior_fork(uint8_t id, char *output);
 // int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
 bool gdb_handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);

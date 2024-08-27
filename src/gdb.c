@@ -16,7 +16,16 @@
 #define MAX_ID 255
 #define INITIAL_INFERIOR_POS 0
 
-int num_inferiors = 0;
+#define GDB_INFERIOR_ID_TO_IDX(x) ((x - 1) % MAX_PDS)
+#define GDB_THREAD_ID_TO_IDX(x) ((x - 1) % MAX_THREADS)
+
+#define PROC_ID_ALL (-1)
+#define PROC_ID_ANY 0
+
+#define THREAD_ID_ALL (-1)
+#define THRAD_ID_ANY 0
+
+int curr_inferior_idx = 0;
 gdb_inferior_t inferiors[MAX_PDS];
 gdb_thread_t *target_thread = NULL;
 
@@ -59,11 +68,10 @@ static void handle_query(char *ptr, char *output) {
         for (uint8_t i = 0; i < MAX_PDS; i++) {
             if (inferiors[i].enabled) {
                 for (uint8_t j = 0; j < MAX_THREADS; j++) {
-                    if (inferiors[i].threads[j].tcb != 0) {
+                    if (inferiors[i].threads[j].enabled) {
                         if (num_printed > 0) {
                             *out_ptr++ = ',';
                         }
-                        // @alwin: Fix length
                         out_ptr = write_thread_id(&inferiors[i].threads[j], out_ptr, 0);
                         num_printed++;
                     } else {
@@ -202,25 +210,32 @@ static void handle_configure_debug_events(char *ptr, char *output) {
     }
 }
 
+
 /* @alwin: Maybe it should be up to the debugger to add the inferior */
 gdb_inferior_t *gdb_register_inferior(uint8_t id, seL4_CPtr vspace) {
     if (id > MAX_ID) {
         return NULL;
     }
 
-    if (num_inferiors == MAX_PDS) {
-        return NULL;
+    int end_idx = curr_inferior_idx + MAX_PDS;
+    gdb_inferior_t *inferior = NULL;
+
+    /* Find a free slot to put this inferior */
+    for (; curr_inferior_idx < end_idx; curr_inferior_idx++) {
+        if (inferiors[curr_inferior_idx % MAX_PDS].enabled) {
+            continue;
+        }
+
+        inferior = &inferiors[curr_inferior_idx % MAX_PDS];
+        inferior->enabled = true;
+        inferior->id = id;
+        inferior->gdb_id = ++curr_inferior_idx;
+        inferior->vspace = vspace;
+        inferior->curr_thread_idx = 0;
+        memset(inferior->threads, 0, MAX_THREADS * sizeof(gdb_thread_t));
+        break;
     }
 
-    gdb_inferior_t *inferior = &inferiors[num_inferiors];
-    inferior->enabled = true;
-    inferior->id = id;
-    inferior->gdb_id = num_inferiors + 1;
-    inferior->vspace = vspace;
-    inferior->num_threads = 0;
-    memset(inferior->threads, 0, MAX_THREADS * sizeof(gdb_thread_t));
-
-    num_inferiors++;
     return inferior;
 }
 
@@ -229,27 +244,32 @@ gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint8_t id, seL4_CPt
         return NULL;
     }
 
-    if (inferior->num_threads == MAX_THREADS) {
-        return NULL;
+    int end_idx = inferior->curr_thread_idx + MAX_THREADS;
+    gdb_thread_t *thread = NULL;
+
+    for (; inferior->curr_thread_idx < end_idx; inferior->curr_thread_idx++) {
+        if (inferior->threads[inferior->curr_thread_idx % MAX_PDS].enabled) {
+            continue;
+        }
+
+        thread = &inferior->threads[inferior->curr_thread_idx % MAX_PDS];
+        thread->enabled = true;
+        thread->wakeup = false;
+        thread->ss_enabled = false;
+        thread->inferior = inferior;
+        thread->id = id;
+        thread->gdb_id = ++inferior->curr_thread_idx;
+        thread->tcb = tcb;
+        memset(thread->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
+        memset(thread->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
+        memset(thread->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
+        break;
     }
 
-    gdb_thread_t *thread = &inferior->threads[inferior->num_threads];
-    thread->enabled = true;
-    thread->wakeup = false;
-    thread->ss_enabled = false;
-    thread->inferior = inferior;
-    thread->id = id;
-    thread->gdb_id = inferior->num_threads + 1;
-    thread->tcb = tcb;
-    memset(thread->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
-    memset(thread->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
-    memset(thread->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
-
-    if (!target_thread) {
+    if (!target_thread && thread) {
         target_thread = thread;
     }
 
-    inferior->num_threads++;
     return thread;
 }
 
@@ -338,6 +358,29 @@ static char *parse_thread_id(char *ptr, int *proc_id, int* thread_id) {
     return ptr_tmp - 1;
 }
 
+static gdb_thread_t *lookup_thread_from_gdb_id(int proc_id, int thread_id) {
+    gdb_inferior_t *inferior = &inferiors[GDB_INFERIOR_ID_TO_IDX(proc_id)];
+    if (inferior->gdb_id != proc_id) {
+        return NULL;
+    }
+
+    gdb_thread_t *thread = &inferior->threads[GDB_THREAD_ID_TO_IDX(thread_id)];
+    if (thread->gdb_id != thread_id) {
+        return NULL;
+    }
+
+    return thread;
+}
+
+static gdb_inferior_t *lookup_inferior_from_gdb_id(int proc_id) {
+    gdb_inferior_t *inferior = &inferiors[(proc_id - 1) % MAX_PDS];
+    if (inferior->gdb_id != proc_id) {
+        return NULL;
+    }
+
+    return inferior;
+}
+
 static void handle_check_thread_alive(char *ptr, char *output) {
     assert(*ptr++ == 'T');
 
@@ -347,7 +390,7 @@ static void handle_check_thread_alive(char *ptr, char *output) {
         return;
     }
 
-    gdb_thread_t *thread = &inferiors[proc_id - 1].threads[thread_id - 1];
+    gdb_thread_t *thread = lookup_thread_from_gdb_id(proc_id, thread_id);
     if (thread->enabled == true) {
         strlcpy(output, "OK", BUFSIZE);
     }
@@ -378,14 +421,19 @@ static void handle_set_inferior(char *ptr, char *output) {
 
     assert(proc_id != -1);
     if (proc_id != 0) {
-        gdb_inferior_t *inferior = &inferiors[proc_id - 1];
+        gdb_inferior_t *inferior = lookup_inferior_from_gdb_id(proc_id);
+        if (!inferior) {
+            strlcpy(output, "E02", BUFSIZE);
+            return;
+        }
 
         if (thread_id != -1) {
             if (thread_id == 0) {
-                // @alwin: Is this the behaviour we want?
-                target_thread = &inferiors->threads[0];
+                // @alwin: Is this the behaviour we want? I don't think so
+                // because thread 1 could be dead
+                target_thread = lookup_thread_from_gdb_id(proc_id, 1);
             } else {
-                target_thread = &inferior->threads[thread_id - 1];
+                target_thread = lookup_thread_from_gdb_id(proc_id, thread_id);
             }
         } else {
             // @alwin: Figure out what to do when thread_id == -1
@@ -447,39 +495,39 @@ void handle_vcont(char *input, char *output) {
             assert(*input++ == ':');
             int proc_id, thread_id;
             input = parse_thread_id(input, &proc_id, &thread_id);
-            // assert(inferiors[proc_id - 1].gdb_id == proc_id);
 
             if (proc_id == -1) {
                 // @alwin: What to do here?
                 continue;
             }
 
+            gdb_inferior_t *inferior = lookup_inferior_from_gdb_id(proc_id);
+
             /* If thread_id == 1, we want to apply the action to all the threads in the inferior  */
             int i = 0;
             int n = MAX_THREADS;
             if (thread_id != -1) {
-                i = thread_id - 1;
+                i = GDB_THREAD_ID_TO_IDX(thread_id);
                 n = thread_id;
             }
 
             for (; i < n; i++) {
-                if (!inferiors[proc_id - 1].threads[i].enabled) {
-                    // @alwin: This should probably be a continue
+                if (!inferior->threads[i].enabled) {
                     continue;
                 }
 
-                if (handled[proc_id - 1][i]) {
+                if (handled[GDB_INFERIOR_ID_TO_IDX(proc_id)][i]) {
                     continue;
                 }
 
                 if (stepping) {
-                    enable_single_step(&inferiors[proc_id - 1].threads[i]);
+                    enable_single_step(&inferior->threads[i]);
                 } else {
-                    disable_single_step(&inferiors[proc_id - 1].threads[i]);
+                    disable_single_step(&inferior->threads[i]);
                 }
 
-                handled[proc_id - 1][i] = true;
-                inferiors[proc_id - 1].threads[i].wakeup = true;
+                handled[GDB_INFERIOR_ID_TO_IDX(proc_id)][i] = true;
+                inferior->threads[i].wakeup = true;
             }
         } while (*input == ':');
     }
@@ -626,3 +674,13 @@ void gdb_thread_spawn(gdb_thread_t *thread, char *output) {
 
     return;
 }
+
+void gdb_thread_exit(gdb_thread_t *thread, char* output) {
+    thread->enabled = false;
+
+    strlcpy(output, "w00;", BUFSIZE);
+    char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+
+    return;
+}
+
