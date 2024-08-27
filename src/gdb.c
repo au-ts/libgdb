@@ -55,15 +55,17 @@ static void handle_query(char *ptr, char *output) {
     } else if (strncmp(ptr, "qfThreadInfo", 12) == 0) {
         char *out_ptr = output;
         *out_ptr++ = 'm';
+        int num_printed = 0;
         for (uint8_t i = 0; i < MAX_PDS; i++) {
             if (inferiors[i].enabled) {
                 for (uint8_t j = 0; j < MAX_THREADS; j++) {
                     if (inferiors[i].threads[j].tcb != 0) {
-                        if (i != 0 && j != 0) {
+                        if (num_printed > 0) {
                             *out_ptr++ = ',';
                         }
                         // @alwin: Fix length
                         out_ptr = write_thread_id(&inferiors[i].threads[j], out_ptr, 0);
+                        num_printed++;
                     } else {
                         break;
                     }
@@ -336,6 +338,23 @@ static char *parse_thread_id(char *ptr, int *proc_id, int* thread_id) {
     return ptr_tmp - 1;
 }
 
+static void handle_check_thread_alive(char *ptr, char *output) {
+    assert(*ptr++ == 'T');
+
+    int proc_id, thread_id = 0;
+    if (parse_thread_id(ptr, &proc_id, &thread_id) == NULL) {
+        strlcpy(output, "E02", BUFSIZE);
+        return;
+    }
+
+    gdb_thread_t *thread = &inferiors[proc_id - 1].threads[thread_id - 1];
+    if (thread->enabled == true) {
+        strlcpy(output, "OK", BUFSIZE);
+    }
+
+    return;
+}
+
 static void handle_set_inferior(char *ptr, char *output) {
     int proc_id, thread_id = 0;
 
@@ -480,6 +499,8 @@ bool gdb_handle_packet(char *input, char *output) {
         handle_query(input, output);
     } else if (*input == 'H') {
         handle_set_inferior(input, output);
+    } else if (*input == 'T') {
+        handle_check_thread_alive(input, output);
     } else if (*input == '?') {
         /* TODO: This should eventually report more reasons than swbreak */
         strlcpy(output, "T05swbreak:;", BUFSIZE);
@@ -600,5 +621,8 @@ bool gdb_handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, seL4_Wor
 void gdb_thread_spawn(gdb_thread_t *thread, char *output) {
     strlcpy(output, "T05clone:", BUFSIZE);
     char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+    strlcpy(ptr, ";", BUFSIZE);
+    // strlcpy(output, "T05create:;", BUFSIZE);
+
     return;
 }
