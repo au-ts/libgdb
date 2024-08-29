@@ -657,6 +657,7 @@ static bool handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, char 
 
     strlcpy(output, "T06thread:", BUFSIZE);
     char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+    strlcpy(ptr, ";", BUFSIZE);
 
     /* As we include a thread-id, GDB expects the target inferior to be the thread that we set */
     target_thread = thread;
