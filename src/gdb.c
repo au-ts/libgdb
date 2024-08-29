@@ -75,11 +75,11 @@ static void handle_query(char *ptr, char *output) {
                         out_ptr = write_thread_id(&inferiors[i].threads[j], out_ptr, 0);
                         num_printed++;
                     } else {
-                        break;
+                        continue;
                     }
                 }
             } else {
-                break;
+                continue;
             }
         }
     } else if (strncmp(ptr, "qsThreadInfo", 12) == 0) {
@@ -396,7 +396,7 @@ static void handle_check_thread_alive(char *ptr, char *output) {
     }
 
     gdb_thread_t *thread = lookup_thread_from_gdb_id(proc_id, thread_id);
-    if (thread->enabled == true) {
+    if (thread->gdb_id == thread_id && thread->enabled == true) {
         strlcpy(output, "OK", BUFSIZE);
     }
 
@@ -472,9 +472,9 @@ void handle_vcont(char *input, char *output) {
             /* If we are stepping, only the thing being stepped should continue*/
             stepping = true;
             for (int i = 0; i < MAX_PDS; i++) {
-                if (!inferiors[i].enabled) break;
+                if (!inferiors[i].enabled) continue;
                 for (int j = 0; j < MAX_THREADS; j++) {
-                    if (!inferiors[i].threads[j].enabled) break;
+                    if (!inferiors[i].threads[j].enabled) continue;
                     inferiors[i].threads[j].wakeup = false;
                 }
             }
@@ -483,9 +483,9 @@ void handle_vcont(char *input, char *output) {
             // @alwin: i think this is a bit dodgy. not entirely convinced that this will
             // work when there are both step and continue things in the same package
             for (int i = 0; i < MAX_PDS; i++) {
-                if (!inferiors[i].enabled) break;
+                if (!inferiors[i].enabled) continue;
                 for (int j = 0; j < MAX_THREADS; j++) {
-                    if (!inferiors[i].threads[j].enabled) break;
+                    if (!inferiors[i].threads[j].enabled) continue;
                     inferiors[i].threads[j].wakeup = true;
                 }
             }
@@ -538,7 +538,48 @@ void handle_vcont(char *input, char *output) {
     }
 }
 
-bool gdb_handle_packet(char *input, char *output) {
+static void handle_detach(char *ptr, char *output) {
+    /* @alwin: This packet could also be used to detach a single specific process */
+    strlcpy(output, "OK", BUFSIZE);
+
+    for (int i = 0; i < MAX_PDS; i++) {
+        if (!inferiors[i].enabled) continue;
+        for (int j = 0; j < MAX_THREADS; j++) {
+            if (!inferiors[i].threads[j].enabled) continue;
+
+            gdb_thread_t *thread = &inferiors[i].threads[j];
+
+            /* Clear any breakpoints/watchpoints */
+            for (int i = 0; i < MAX_SW_BREAKS; i++) {
+                unset_software_breakpoint(thread, thread->software_breakpoints[i].addr);
+            }
+
+            for (int i = 0; i < seL4_NumExclusiveBreakpoints; i++) {
+                unset_hardware_breakpoint(thread, thread->hardware_breakpoints[i].addr);
+            }
+
+            for (int i = 0; i < seL4_NumExclusiveWatchpoints; i++) {
+                unset_hardware_watchpoint(thread, thread->hardware_watchpoints[i].addr,
+                                          thread->hardware_watchpoints[i].type,
+                                          thread->hardware_watchpoints[i].size);
+            }
+
+            if (thread->ss_enabled) {
+                disable_single_step(thread);
+            }
+
+            thread->ss_enabled = false;
+            memset(thread->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
+            memset(thread->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
+            memset(thread->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
+            inferiors[i].threads[j].wakeup = true;
+        }
+    }
+
+    return;
+}
+
+bool gdb_handle_packet(char *input, char *output, bool *detached) {
     output[0] = 0;
     if (*input == 'g') {
         handle_read_regs(output);
@@ -552,6 +593,10 @@ bool gdb_handle_packet(char *input, char *output) {
         handle_query(input, output);
     } else if (*input == 'H') {
         handle_set_inferior(input, output);
+    } else if (*input == 'D') {
+        handle_detach(input, output);
+        *detached = true;
+        return true;
     } else if (*input == 'T') {
         handle_check_thread_alive(input, output);
     } else if (*input == '?') {
