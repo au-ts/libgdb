@@ -89,19 +89,19 @@ typedef enum continue_type {
     ctype_ss,
 } cont_type_t;
 
-bool set_software_breakpoint(gdb_thread_t *inferior, seL4_Word address);
-bool unset_software_breakpoint(gdb_thread_t *inferior, seL4_Word address);
+bool set_software_breakpoint(gdb_thread_t *thread, seL4_Word address);
+bool unset_software_breakpoint(gdb_thread_t *thread, seL4_Word address);
 
-bool set_hardware_breakpoint(gdb_thread_t *inferior, seL4_Word address);
-bool unset_hardware_breakpoint(gdb_thread_t *inferior, seL4_Word address);
+bool set_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address);
+bool unset_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address);
 
-bool set_hardware_watchpoint(gdb_thread_t *inferior, seL4_Word address,
+bool set_hardware_watchpoint(gdb_thread_t *thread, seL4_Word address,
                              seL4_BreakpointAccess type, seL4_Word size);
-bool unset_hardware_watchpoint(gdb_thread_t *inferior, seL4_Word address,
+bool unset_hardware_watchpoint(gdb_thread_t *thread, seL4_Word address,
                                seL4_BreakpointAccess type, seL4_Word size);
 
-bool enable_single_step(gdb_thread_t *inferior);
-bool disable_single_step(gdb_thread_t *inferior);
+bool enable_single_step(gdb_thread_t *thread);
+bool disable_single_step(gdb_thread_t *thread);
 
 /* Convert registers to a hex string */
 char *regs2hex(seL4_UserContext *regs, char *buf);
@@ -121,5 +121,5 @@ void gdb_thread_exit(gdb_thread_t *thread, char *output);
 // int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
 bool gdb_handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
 
-bool gdb_handle_packet(char *input, char *output);
+bool gdb_handle_packet(char *input, char *output, bool *detached);
 
