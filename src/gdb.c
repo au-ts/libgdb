@@ -93,6 +93,10 @@ static void handle_query(char *ptr, char *output) {
         strlcpy(output, "T0", BUFSIZE);
     } else if (strncmp(ptr, "qAttached", 9) == 0) {
         strlcpy(output, "1", BUFSIZE);
+    } else if (strncmp(ptr, "QThreadEvents:1", 15) == 0) {
+        strlcpy(output, "OK", BUFSIZE);
+    } else if (strncmp(ptr, "QThreadEvents:0", 15) == 0) {
+        strlcpy(output, "OK", BUFSIZE);
     }
 }
 
@@ -145,9 +149,10 @@ static bool parse_breakpoint_format(char *ptr, seL4_Word *addr, seL4_Word *kind)
         return false;
     }
 
-    /* @alwin: whats this about again? */
+    /* This is generally to do with the size of the breakpoint that is set. This will be 4
+       for breakpoints and any of the following for watchpoints */
     ptr = hexstr_to_int(ptr, sizeof(seL4_Word) * 2, kind);
-    if (*kind != 4) {
+    if (*kind != 1 && *kind != 2 && *kind != 4 && *kind != 8) {
         return false;
     }
 
@@ -197,9 +202,9 @@ static void handle_configure_debug_events(char *ptr, char *output) {
         }
 
         if (ptr[0] == 'Z') {
-            success = set_hardware_watchpoint(target_thread, addr, watchpoint_type);
+            success = set_hardware_watchpoint(target_thread, addr, watchpoint_type, size);
         } else {
-            success = unset_hardware_watchpoint(target_thread, addr, watchpoint_type);
+            success = unset_hardware_watchpoint(target_thread, addr, watchpoint_type, size);
         }
     }
 
@@ -543,7 +548,7 @@ bool gdb_handle_packet(char *input, char *output) {
         handle_read_mem(input, output);
     } else if (*input == 'M') {
         handle_write_mem(input, output);
-    } else if (*input == 'q') {
+    } else if (*input == 'q' || *input == 'Q') {
         handle_query(input, output);
     } else if (*input == 'H') {
         handle_set_inferior(input, output);
