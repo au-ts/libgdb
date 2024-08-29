@@ -126,7 +126,7 @@ bool set_software_breakpoint(gdb_thread_t *thread, seL4_Word address) {
     }
 
     int i = 0;
-    for (i = 0; i < MAX_SW_BREAKS; i++) {
+    for (; i < MAX_SW_BREAKS; i++) {
         if (thread->software_breakpoints[i].addr == 0) {
             thread->software_breakpoints[i] = tmp;
             return true;
@@ -141,8 +141,7 @@ bool set_software_breakpoint(gdb_thread_t *thread, seL4_Word address) {
 
 bool unset_software_breakpoint(gdb_thread_t *thread, seL4_Word address) {
     int i = 0;
-
-    for (i = 0; i < MAX_SW_BREAKS; i++) {
+    for (; i < MAX_SW_BREAKS; i++) {
         if (thread->software_breakpoints[i].addr == address) {
             int err = seL4_ARM_VSpace_Write_Word(thread->inferior->vspace,
                                                  address,
@@ -162,22 +161,25 @@ bool unset_software_breakpoint(gdb_thread_t *thread, seL4_Word address) {
 
 bool set_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address) {
     int i = 0;
-    for (i = 0; i < seL4_NumExclusiveBreakpoints; i++) {
+    for (; i < seL4_NumExclusiveBreakpoints; i++) {
         if (!thread->hardware_breakpoints[i].addr) break;
     }
 
     if (i == seL4_NumExclusiveBreakpoints) return false;
 
-    seL4_TCB_SetBreakpoint(thread->tcb, seL4_FirstBreakpoint + i, address,
+    seL4_Error err = seL4_TCB_SetBreakpoint(thread->tcb, seL4_FirstBreakpoint + i, address,
                            seL4_InstructionBreakpoint, 0, seL4_BreakOnRead);
+    if (err) {
+        return false;
+    }
 
-    // @alwin check ret value
+    thread->hardware_breakpoints[i].addr = address;
     return true;
 }
 
 bool unset_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address) {
     int i = 0;
-    for (i = 0; i < seL4_NumExclusiveBreakpoints; i++) {
+    for (; i < seL4_NumExclusiveBreakpoints; i++) {
         if (thread->hardware_breakpoints[i].addr == address) {
             thread->hardware_breakpoints[i].addr = 0;
             break;
@@ -191,29 +193,38 @@ bool unset_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address) {
 }
 
 bool set_hardware_watchpoint(gdb_thread_t *thread, seL4_Word address,
-                             seL4_BreakpointAccess type) {
+                             seL4_BreakpointAccess type, seL4_Word size) {
     int i = 0;
-    for (i = 0; i < seL4_NumExclusiveWatchpoints; i++) {
+    for (; i < seL4_NumExclusiveWatchpoints; i++) {
         if (!thread->hardware_watchpoints[i].addr) break;
     }
 
     if (i == seL4_NumExclusiveWatchpoints) return false;
 
-    // @alwin: check ret value
-    seL4_TCB_SetBreakpoint(thread->tcb, seL4_FirstWatchpoint + i, address,
-                           seL4_DataBreakpoint, 0, type);
+    seL4_Error err = seL4_TCB_SetBreakpoint(thread->tcb, seL4_FirstWatchpoint + i,
+                                            address, seL4_DataBreakpoint, size, type);
+    if (err) {
+        return false;
+    }
+
+    thread->hardware_watchpoints[i].addr = address;
+    thread->hardware_watchpoints[i].size = size;
+    thread->hardware_watchpoints[i].type = type;
+
 
     return true;
 }
 
 bool unset_hardware_watchpoint(gdb_thread_t *thread, seL4_Word address,
-                               seL4_BreakpointAccess type) {
+                               seL4_BreakpointAccess type, seL4_Word size) {
     int i = 0;
-    for (i = 0; i < seL4_NumExclusiveWatchpoints; i++) {
+    for (; i < seL4_NumExclusiveWatchpoints; i++) {
         if (thread->hardware_watchpoints[i].addr == address &&
-            thread->hardware_watchpoints[i].type == type) {
+            thread->hardware_watchpoints[i].type == type &&
+            thread->hardware_watchpoints[i].size == size) {
 
             thread->hardware_watchpoints[i].addr = 0;
+
             break;
         }
     }

@@ -29,6 +29,7 @@
 /* Bookkeeping for watchpoints */
 typedef struct watchpoint {
     uint64_t addr;
+    seL4_Word size; //@alwin: No real reason for this to be so big
     seL4_BreakpointAccess type;
 } hw_watch_t;
 
@@ -95,9 +96,9 @@ bool set_hardware_breakpoint(gdb_thread_t *inferior, seL4_Word address);
 bool unset_hardware_breakpoint(gdb_thread_t *inferior, seL4_Word address);
 
 bool set_hardware_watchpoint(gdb_thread_t *inferior, seL4_Word address,
-                             seL4_BreakpointAccess type);
+                             seL4_BreakpointAccess type, seL4_Word size);
 bool unset_hardware_watchpoint(gdb_thread_t *inferior, seL4_Word address,
-                               seL4_BreakpointAccess type);
+                               seL4_BreakpointAccess type, seL4_Word size);
 
 bool enable_single_step(gdb_thread_t *inferior);
 bool disable_single_step(gdb_thread_t *inferior);
