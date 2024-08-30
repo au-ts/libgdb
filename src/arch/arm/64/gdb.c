@@ -155,7 +155,6 @@ bool unset_software_breakpoint(gdb_thread_t *thread, seL4_Word address) {
         }
     }
 
-    /* @alwin: this is kind of a hack to account for a fork but I think it is fairly benign? */
     return true;
 }
 
@@ -282,9 +281,9 @@ bool disable_single_step(gdb_thread_t *thread) {
     return buf;
 }
 
-/**
+/*
  * Returns a ptr to the char after last memory byte written
- *  or NULL on error (cannot write memory)
+ * or NULL on error (cannot write memory)
  */
 seL4_Word inf_hex2mem(gdb_thread_t *thread, char *buf, seL4_Word mem, int size)
 {
