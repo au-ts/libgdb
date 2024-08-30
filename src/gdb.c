@@ -13,9 +13,6 @@
 
 //#define DEBUG_PRINTS 1
 // @alwin: increase this
-#define MAX_ID 255
-#define INITIAL_INFERIOR_POS 0
-
 #define GDB_INFERIOR_ID_TO_IDX(x) ((x - 1) % MAX_PDS)
 #define GDB_THREAD_ID_TO_IDX(x) ((x - 1) % MAX_THREADS)
 
@@ -23,10 +20,10 @@
 #define PROC_ID_ANY 0
 
 #define THREAD_ID_ALL (-1)
-#define THRAD_ID_ANY 0
+#define THREAD_ID_ANY 0
 
 int curr_inferior_idx = 0;
-gdb_inferior_t inferiors[MAX_PDS];
+gdb_inferior_t inferiors[MAX_PDS] = {0};
 gdb_thread_t *target_thread = NULL;
 
 /* Read registers */
@@ -65,21 +62,17 @@ static void handle_query(char *ptr, char *output) {
         char *out_ptr = output;
         *out_ptr++ = 'm';
         int num_printed = 0;
-        for (uint8_t i = 0; i < MAX_PDS; i++) {
+        for (int i = 0; i < MAX_PDS; i++) {
             if (inferiors[i].enabled) {
-                for (uint8_t j = 0; j < MAX_THREADS; j++) {
+                for (int j = 0; j < MAX_THREADS; j++) {
                     if (inferiors[i].threads[j].enabled) {
                         if (num_printed > 0) {
                             *out_ptr++ = ',';
                         }
                         out_ptr = write_thread_id(&inferiors[i].threads[j], out_ptr, 0);
                         num_printed++;
-                    } else {
-                        continue;
                     }
                 }
-            } else {
-                continue;
             }
         }
     } else if (strncmp(ptr, "qsThreadInfo", 12) == 0) {
@@ -216,12 +209,7 @@ static void handle_configure_debug_events(char *ptr, char *output) {
 }
 
 
-/* @alwin: Maybe it should be up to the debugger to add the inferior */
-gdb_inferior_t *gdb_register_inferior(uint8_t id, seL4_CPtr vspace) {
-    if (id > MAX_ID) {
-        return NULL;
-    }
-
+gdb_inferior_t *gdb_register_inferior(uint64_t id, seL4_CPtr vspace) {
     int end_idx = curr_inferior_idx + MAX_PDS;
     gdb_inferior_t *inferior = NULL;
 
@@ -244,20 +232,16 @@ gdb_inferior_t *gdb_register_inferior(uint8_t id, seL4_CPtr vspace) {
     return inferior;
 }
 
-gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint8_t id, seL4_CPtr tcb) {
-    if (id > MAX_ID) {
-        return NULL;
-    }
-
+gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint64_t id, seL4_CPtr tcb) {
     int end_idx = inferior->curr_thread_idx + MAX_THREADS;
     gdb_thread_t *thread = NULL;
 
     for (; inferior->curr_thread_idx < end_idx; inferior->curr_thread_idx++) {
-        if (inferior->threads[inferior->curr_thread_idx % MAX_PDS].enabled) {
+        if (inferior->threads[inferior->curr_thread_idx % MAX_THREADS].enabled) {
             continue;
         }
 
-        thread = &inferior->threads[inferior->curr_thread_idx % MAX_PDS];
+        thread = &inferior->threads[inferior->curr_thread_idx % MAX_THREADS];
         thread->enabled = true;
         thread->wakeup = false;
         thread->ss_enabled = false;
@@ -332,7 +316,6 @@ static char *parse_thread_id(char *ptr, int *proc_id, int* thread_id) {
     size /= 2;
 
     if (size == 0) {
-        // @alwin: Double check this
         *proc_id = hexchar_to_int(*ptr);
     } else {
         hex2mem(ptr, (char *) proc_id, size);
@@ -353,7 +336,6 @@ static char *parse_thread_id(char *ptr, int *proc_id, int* thread_id) {
     size /= 2;
 
     if (size == 0) {
-        // @alwin: Double check this
         *thread_id = hexchar_to_int(*ptr);
     } else {
         hex2mem(ptr, (char *) thread_id, size);
@@ -424,16 +406,16 @@ static void handle_set_inferior(char *ptr, char *output) {
         return;
     }
 
-    assert(proc_id != -1);
-    if (proc_id != 0) {
+    assert(proc_id != PROC_ID_ALL);
+    if (proc_id != PROC_ID_ANY) {
         gdb_inferior_t *inferior = lookup_inferior_from_gdb_id(proc_id);
         if (!inferior) {
             strlcpy(output, "E02", BUFSIZE);
             return;
         }
 
-        if (thread_id != -1) {
-            if (thread_id == 0) {
+        if (thread_id != THREAD_ID_ALL) {
+            if (thread_id == THREAD_ID_ANY) {
                 // @alwin: Is this the behaviour we want? I don't think so
                 // because thread 1 could be dead
                 target_thread = lookup_thread_from_gdb_id(proc_id, 1);
@@ -441,16 +423,14 @@ static void handle_set_inferior(char *ptr, char *output) {
                 target_thread = lookup_thread_from_gdb_id(proc_id, thread_id);
             }
         } else {
-            // @alwin: Figure out what to do when thread_id == -1
-        }
-
-        if (target_thread->tcb == 0) {
-            //@alwin: todo, figure this out
+            // @alwin: Figure out what to do when thread_id == THREAD_ID_ALL
         }
     } else {
-        // @alwin: Figure out what to do when proc_id == 0
+        // @alwin: Figure out what to do when proc_id == PROC_ID_ANY
+        // For now, we just leave the current thread as the target thread, which seems fairly valid
     }
 
+    assert(target_thread->enabled && target_thread->tcb != 0);
     strlcpy(output, "OK", BUFSIZE);
 }
 
@@ -480,7 +460,7 @@ void handle_vcont(char *input, char *output) {
             }
         } else if (*input == 'c') {
             stepping = false;
-            // @alwin: i think this is a bit dodgy. not entirely convinced that this will
+            // @alwin: I think this is a bit dodgy. not entirely convinced that this will
             // work when there are both step and continue things in the same package
             for (int i = 0; i < MAX_PDS; i++) {
                 if (!inferiors[i].enabled) continue;
@@ -501,8 +481,9 @@ void handle_vcont(char *input, char *output) {
             int proc_id, thread_id;
             input = parse_thread_id(input, &proc_id, &thread_id);
 
-            if (proc_id == -1) {
-                // @alwin: What to do here?
+            if (proc_id == PROC_ID_ALL) {
+                // @alwin: In this case, we should select all inferiors.
+                printf("TODO: proc_id=-1 provided in vCont packet");
                 continue;
             }
 
@@ -511,7 +492,7 @@ void handle_vcont(char *input, char *output) {
             /* If thread_id == 1, we want to apply the action to all the threads in the inferior  */
             int i = 0;
             int n = MAX_THREADS;
-            if (thread_id != -1) {
+            if (thread_id != THREAD_ID_ALL) {
                 i = GDB_THREAD_ID_TO_IDX(thread_id);
                 n = thread_id;
             }
@@ -600,7 +581,10 @@ bool gdb_handle_packet(char *input, char *output, bool *detached) {
     } else if (*input == 'T') {
         handle_check_thread_alive(input, output);
     } else if (*input == '?') {
-        /* TODO: This should eventually report more reasons than swbreak */
+        /* @alwin: This should probably report reasons other than swbreak, though I've only seen
+         * this packet be used when first connecting to the system, in which case only swbreak makes
+         * any sense.
+         */
         strlcpy(output, "T05swbreak:;", BUFSIZE);
     } else if (*input == 'v') {
         if (strncmp(input, "vCont?", 7) == 0) {
@@ -630,7 +614,6 @@ static bool handle_ss_hwbreak_swbreak_exception(gdb_thread_t *thread, seL4_Word 
     }
 
     /* As we include a thread-id, GDB expects the target inferior to be the thread that we set */
-    // @alwin: Double check that this is actually true
     target_thread = thread;
 
     return (reason == seL4_SingleStep);
@@ -657,7 +640,6 @@ static void handle_watchpoint_exception(gdb_thread_t *thread, seL4_Word bp_num, 
     seL4_Word vaddr_be = arch_to_big_endian(trigger_address);
     ptr = mem2hex((char *) &vaddr_be, output + strnlen(output, BUFSIZE), sizeof(seL4_Word));
     strlcpy(ptr, ";", BUFSIZE);
-    // gdb_put_packet(output);
 }
 
 static bool handle_debug_exception(gdb_thread_t *thread, seL4_Word *reply_mr, char *output) {
@@ -666,7 +648,6 @@ static bool handle_debug_exception(gdb_thread_t *thread, seL4_Word *reply_mr, ch
     seL4_Word trigger_address = seL4_GetMR(seL4_DebugException_TriggerAddress);
     seL4_Word bp_num = seL4_GetMR(seL4_DebugException_BreakpointNumber);
 
-    // bool single_step_reply = false;
     switch (reason) {
         case seL4_InstructionBreakpoint:
         case seL4_SingleStep:
@@ -677,20 +658,6 @@ static bool handle_debug_exception(gdb_thread_t *thread, seL4_Word *reply_mr, ch
             handle_watchpoint_exception(thread, bp_num, trigger_address, output);
             break;
     }
-
-    // @alwin: wat do
-    // cont_type_t cont_type = gdb_event_loop();
-
-    // if (single_step_reply) {
-    //     if (cont_type == ctype_ss) {
-    //         // @alwin: multi-instruction stepping?
-    //         *reply_mr = 1;
-    //     } else {
-    //         *reply_mr = 0;
-    //     }
-
-    //     return 1;
-    // }
 
     // @alwin: i think you always want to resume for a debug exception. Think about this more.
     return true;
@@ -720,8 +687,9 @@ bool gdb_handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, seL4_Wor
 void gdb_thread_spawn(gdb_thread_t *thread, char *output) {
     strlcpy(output, "T05clone:", BUFSIZE);
     char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+    strlcpy(ptr, ";thread:", BUFSIZE);
+    ptr = write_thread_id(target_thread    , output + strlen(output), BUFSIZE - strlen(output));
     strlcpy(ptr, ";", BUFSIZE);
-    // strlcpy(output, "T05create:;", BUFSIZE);
 
     return;
 }

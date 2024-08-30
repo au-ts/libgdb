@@ -7,7 +7,6 @@
 #pragma once
 
 // @alwin: Ideally this shouldn't depend on microkit
-#
 #ifdef MICROKIT
 #include <microkit.h>
 #else
@@ -19,12 +18,12 @@
 #include <sel4/sel4_arch/types.h>
 
 #define MAX_PDS 64
-#define MAX_THREADS 64
+#define MAX_THREADS 256
 #define MAX_ELF_NAME 32
-#define MAX_SW_BREAKS 10
+#define MAX_SW_BREAKS 32
 
 // @alwin: All the output strclpy things use this #define. This is quite likely a bad design choice.
-#define BUFSIZE 1024
+#define BUFSIZE 2048
 
 /* Bookkeeping for watchpoints */
 typedef struct watchpoint {
@@ -55,7 +54,7 @@ typedef struct thread {
     gdb_inferior_t *inferior;
     /* The id is something provided by the remote and is used to identify a thread when something such
        as a fault occurs */
-    uint16_t id;
+    uint64_t id;
     /* The gdb_id is internal to GDB and is used for ease of implementation and efficiency reasons.
        This is the id that is told to GDB. */
     uint16_t gdb_id;
@@ -70,16 +69,22 @@ struct inferior {
     bool enabled;
     /* The id is something provided by the remote and is used to identify a thread when something such
        as a fault occurs */
-    uint16_t id;
+    uint64_t id;
     /* The gdb_id is internal to GDB and is used for ease of implementation and efficiency reasons.
        This is the id that is told to GDB. */
     uint16_t gdb_id;
     seL4_CPtr vspace;
     int curr_thread_idx;
-    gdb_thread_t threads[64];
+    gdb_thread_t threads[MAX_THREADS];
 };
 
-/* We expose the current target inferior to users of the library */
+/* We expose the current target inferior and list of inferiors to users of the library */
+
+/* @alwin: The reason I did this originally was because I thought that the user might have
+ * a more efficient way of linking an id to an inferior than libGDB does, but I think this is no
+ * longer the case with the thread allocation strategy used in libGDB. It would be better for
+ * users to just provide inferior/target id and have libGDB use a hashmap or something internally.
+ */
 extern gdb_thread_t *target_thread;
 extern gdb_inferior_t inferiors[MAX_PDS];
 
@@ -112,8 +117,8 @@ char *hex2regs(seL4_UserContext *regs, char *buf);
 char *inf_mem2hex(gdb_thread_t *inferior, seL4_Word mem, char *buf, int size, seL4_Word *error);
 seL4_Word inf_hex2mem(gdb_thread_t *inferior, char *buf, seL4_Word mem, int size);
 
-gdb_inferior_t *gdb_register_inferior(uint8_t id, seL4_CPtr vspace);
-gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint8_t id, seL4_CPtr tcb);
+gdb_inferior_t *gdb_register_inferior(uint64_t id, seL4_CPtr vspace);
+gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint64_t id, seL4_CPtr tcb);
 void gdb_thread_spawn(gdb_thread_t *thread, char *output);
 void gdb_thread_exit(gdb_thread_t *thread, char *output);
 
