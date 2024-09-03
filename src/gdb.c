@@ -10,6 +10,9 @@
 #include <sel4/constants.h>
 #include <printf.h>
 #include <string.h>
+#ifndef MICROKIT
+#include <assert.h>
+#endif /* MICROKIT */
 
 //#define DEBUG_PRINTS 1
 // @alwin: increase this
