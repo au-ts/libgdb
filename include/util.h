@@ -12,6 +12,8 @@
 #include <stdint.h>
 #endif /* MICROKIT */
 
+#ifdef MICROKIT
+
 static void assert_fail(
     const char  *assertion,
     const char  *file,
@@ -30,10 +32,12 @@ static void assert_fail(
         } \
     } while(0)
 
-// seL4_Word strlcpy(char *dest, const char *src, seL4_Word size);
-// int PURE strncmp(const char *s1, const char *s2, int n);
-// seL4_Word strnlen(const char *s, seL4_Word maxlen);
-// void *memchr (const void *s, int c, seL4_Word size);
+seL4_Word strlcpy(char *dest, const char *src, seL4_Word size);
+int PURE strncmp(const char *s1, const char *s2, int n);
+seL4_Word strnlen(const char *s, seL4_Word maxlen);
+void *memchr (const void *s, int c, seL4_Word size);
+
+#endif /* MICROKIT */
 
 int hexchar_to_int(unsigned char c);
 unsigned char int_to_hexchar(int i);
