@@ -59,9 +59,6 @@ typedef struct thread {
        This is the id that is told to GDB. */
     uint16_t gdb_id;
     seL4_CPtr tcb;
-    sw_break_t software_breakpoints[MAX_SW_BREAKS];
-    hw_break_t hardware_breakpoints[seL4_NumExclusiveBreakpoints];
-    hw_watch_t hardware_watchpoints[seL4_NumExclusiveWatchpoints];
 } gdb_thread_t;
 
 /* GDB uses 'inferiors' to distinguish between different processes (in our case PDs) */
@@ -76,6 +73,9 @@ struct inferior {
     seL4_CPtr vspace;
     int curr_thread_idx;
     gdb_thread_t threads[MAX_THREADS];
+    sw_break_t software_breakpoints[MAX_SW_BREAKS];
+    hw_break_t hardware_breakpoints[seL4_NumExclusiveBreakpoints];
+    hw_watch_t hardware_watchpoints[seL4_NumExclusiveWatchpoints];
 };
 
 /* We expose the current target inferior and list of inferiors to users of the library */
@@ -94,15 +94,17 @@ typedef enum continue_type {
     ctype_ss,
 } cont_type_t;
 
-bool set_software_breakpoint(gdb_thread_t *thread, seL4_Word address);
-bool unset_software_breakpoint(gdb_thread_t *thread, seL4_Word address);
+bool set_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address);
+bool thread_enable_nth_hw_breakpoint(gdb_thread_t *thread, int n);
+bool unset_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address);
 
-bool set_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address);
-bool unset_hardware_breakpoint(gdb_thread_t *thread, seL4_Word address);
+bool set_hardware_breakpoint(gdb_inferior_t *inferior, seL4_Word address);
+bool unset_hardware_breakpoint(gdb_inferior_t *inferior, seL4_Word address);
 
-bool set_hardware_watchpoint(gdb_thread_t *thread, seL4_Word address,
+bool set_hardware_watchpoint(gdb_inferior_t *inferior, seL4_Word address,
                              seL4_BreakpointAccess type, seL4_Word size);
-bool unset_hardware_watchpoint(gdb_thread_t *thread, seL4_Word address,
+bool thread_enable_nth_hw_watchpoint(gdb_thread_t *thread, int n);
+bool unset_hardware_watchpoint(gdb_inferior_t *inferior, seL4_Word address,
                                seL4_BreakpointAccess type, seL4_Word size);
 
 bool enable_single_step(gdb_thread_t *thread);

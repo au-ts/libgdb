@@ -170,16 +170,17 @@ static void handle_configure_debug_events(char *ptr, char *output) {
 
     if (strncmp(ptr, "Z0", 2) == 0) {
         /* Set a software breakpoint using binary rewriting */
-        success = set_software_breakpoint(target_thread, addr);
+        success = set_software_breakpoint(target_thread->inferior, addr);
     } else if (strncmp(ptr, "z0", 2) == 0) {
         /* Unset a software breakpoint */
-        success = unset_software_breakpoint(target_thread, addr);
+        printf("\nUnsetting a software breakpoint \n");
+        success = unset_software_breakpoint(target_thread->inferior, addr);
     } else if (strncmp(ptr, "Z1", 2) == 0) {
         /* Set a hardware breakpoint */
-        success = set_hardware_breakpoint(target_thread, addr);
+        success = set_hardware_breakpoint(target_thread->inferior, addr);
     } else if (strncmp(ptr, "z1", 2) == 0) {
         /* Unset a hardware breakpoint */
-        success = unset_hardware_breakpoint(target_thread, addr);
+        success = unset_hardware_breakpoint(target_thread->inferior, addr);
     } else {
         seL4_BreakpointAccess watchpoint_type;
         switch (ptr[1]) {
@@ -198,9 +199,9 @@ static void handle_configure_debug_events(char *ptr, char *output) {
         }
 
         if (ptr[0] == 'Z') {
-            success = set_hardware_watchpoint(target_thread, addr, watchpoint_type, size);
+            success = set_hardware_watchpoint(target_thread->inferior, addr, watchpoint_type, size);
         } else {
-            success = unset_hardware_watchpoint(target_thread, addr, watchpoint_type, size);
+            success = unset_hardware_watchpoint(target_thread->inferior, addr, watchpoint_type, size);
         }
     }
 
@@ -229,6 +230,9 @@ gdb_inferior_t *gdb_register_inferior(uint64_t id, seL4_CPtr vspace) {
         inferior->vspace = vspace;
         inferior->curr_thread_idx = 0;
         memset(inferior->threads, 0, MAX_THREADS * sizeof(gdb_thread_t));
+        memset(inferior->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
+        memset(inferior->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
+        memset(inferior->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
         break;
     }
 
@@ -252,9 +256,19 @@ gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint64_t id, seL4_CP
         thread->id = id;
         thread->gdb_id = ++inferior->curr_thread_idx;
         thread->tcb = tcb;
-        memset(thread->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
-        memset(thread->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
-        memset(thread->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
+
+        /* Set all the hardware breakpoints and watchpoints that have already been set
+           for this inferior */
+        for (int i = 0; i < seL4_NumExclusiveBreakpoints; i++) {
+            // @alwin: Deal with error case
+            thread_enable_nth_hw_breakpoint(thread, i);
+        }
+
+        for (int i = 0; i< seL4_NumExclusiveWatchpoints; i++) {
+            // @alwin: Deal with error case
+            thread_enable_nth_hw_watchpoint(thread, i);
+        }
+
         break;
     }
 
@@ -528,35 +542,35 @@ static void handle_detach(char *ptr, char *output) {
 
     for (int i = 0; i < MAX_PDS; i++) {
         if (!inferiors[i].enabled) continue;
+
+        gdb_inferior_t *inferior = &inferiors[i];
+
+        /* @alwin: This is kinda stupid and slow */
+        /* Clear any breakpoints/watchpoints */
+        for (int i = 0; i < MAX_SW_BREAKS; i++) {
+            unset_software_breakpoint(inferior, inferior->software_breakpoints[i].addr);
+        }
+        for (int i = 0; i < seL4_NumExclusiveBreakpoints; i++) {
+            unset_hardware_breakpoint(inferior, inferior->hardware_breakpoints[i].addr);
+        }
+        for (int i = 0; i < seL4_NumExclusiveWatchpoints; i++) {
+            unset_hardware_watchpoint(inferior, inferior->hardware_watchpoints[i].addr,
+                                      inferior->hardware_watchpoints[i].type,
+                                      inferior->hardware_watchpoints[i].size);
+        }
+        memset(inferior->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
+        memset(inferior->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
+        memset(inferior->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
+
         for (int j = 0; j < MAX_THREADS; j++) {
-            if (!inferiors[i].threads[j].enabled) continue;
+            if (!inferior->threads[j].enabled) continue;
 
-            gdb_thread_t *thread = &inferiors[i].threads[j];
-
-            /* Clear any breakpoints/watchpoints */
-            for (int i = 0; i < MAX_SW_BREAKS; i++) {
-                unset_software_breakpoint(thread, thread->software_breakpoints[i].addr);
-            }
-
-            for (int i = 0; i < seL4_NumExclusiveBreakpoints; i++) {
-                unset_hardware_breakpoint(thread, thread->hardware_breakpoints[i].addr);
-            }
-
-            for (int i = 0; i < seL4_NumExclusiveWatchpoints; i++) {
-                unset_hardware_watchpoint(thread, thread->hardware_watchpoints[i].addr,
-                                          thread->hardware_watchpoints[i].type,
-                                          thread->hardware_watchpoints[i].size);
-            }
-
+            gdb_thread_t *thread = &inferior->threads[j];
             if (thread->ss_enabled) {
                 disable_single_step(thread);
             }
-
             thread->ss_enabled = false;
-            memset(thread->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
-            memset(thread->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
-            memset(thread->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
-            inferiors[i].threads[j].wakeup = true;
+            thread->wakeup = true;
         }
     }
 
@@ -626,7 +640,7 @@ static void handle_watchpoint_exception(gdb_thread_t *thread, seL4_Word bp_num, 
 
     strlcpy(output, "T05thread:", BUFSIZE);
     char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
-    switch (thread->hardware_watchpoints[bp_num - seL4_FirstWatchpoint].type) {
+    switch (thread->inferior->hardware_watchpoints[bp_num - seL4_FirstWatchpoint].type) {
         case seL4_BreakOnWrite:
             strlcpy(ptr, ";watch:", BUFSIZE);
             break;
@@ -643,6 +657,9 @@ static void handle_watchpoint_exception(gdb_thread_t *thread, seL4_Word bp_num, 
     seL4_Word vaddr_be = arch_to_big_endian(trigger_address);
     ptr = mem2hex((char *) &vaddr_be, output + strnlen(output, BUFSIZE), sizeof(seL4_Word));
     strlcpy(ptr, ";", BUFSIZE);
+
+    /* As we include a thread-id, GDB expects the target inferior to be the thread that we set */
+    target_thread = thread;
 }
 
 static bool handle_debug_exception(gdb_thread_t *thread, seL4_Word *reply_mr, char *output) {
