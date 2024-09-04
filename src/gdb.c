@@ -173,7 +173,6 @@ static void handle_configure_debug_events(char *ptr, char *output) {
         success = set_software_breakpoint(target_thread->inferior, addr);
     } else if (strncmp(ptr, "z0", 2) == 0) {
         /* Unset a software breakpoint */
-        printf("\nUnsetting a software breakpoint \n");
         success = unset_software_breakpoint(target_thread->inferior, addr);
     } else if (strncmp(ptr, "Z1", 2) == 0) {
         /* Set a hardware breakpoint */
@@ -212,10 +211,42 @@ static void handle_configure_debug_events(char *ptr, char *output) {
     }
 }
 
+static gdb_inferior_t *lookup_inferior_from_id(uint64_t inferior_id) {
+    // @alwin: This should really be implemented with a hashmap
+    for (int i = 0; i < MAX_PDS; i++) {
+        if (inferiors[i].enabled && inferiors[i].id == inferior_id) {
+            return &inferiors[i];
+        }
+    }
 
-gdb_inferior_t *gdb_register_inferior(uint64_t id, seL4_CPtr vspace) {
+    return NULL;
+}
+
+static gdb_thread_t *lookup_thread_from_id(gdb_inferior_t *inferior, uint64_t thread_id) {
+    // @alwin: This should really be implemented with a hashmap
+    for (int i = 0; i < MAX_THREADS; i++) {
+        if (inferior->threads[i].enabled && inferior->threads[i].id == thread_id) {
+            return &inferior->threads[i];
+        }
+    }
+
+    return NULL;
+}
+
+
+
+DebuggerError gdb_register_inferior(uint64_t inferior_id, seL4_CPtr vspace) {
+    /* Check that an inferior with this ID doesn't already exist */
+    gdb_inferior_t *inferior = lookup_inferior_from_id(inferior_id);
+    if (inferior) {
+        if (inferior->vspace == vspace) {
+            return DebuggerError_AlreadyRegistered;
+        } else {
+            return DebuggerError_InvalidArguments;
+        }
+    }
+
     int end_idx = curr_inferior_idx + MAX_PDS;
-    gdb_inferior_t *inferior = NULL;
 
     /* Find a free slot to put this inferior */
     for (; curr_inferior_idx < end_idx; curr_inferior_idx++) {
@@ -225,7 +256,7 @@ gdb_inferior_t *gdb_register_inferior(uint64_t id, seL4_CPtr vspace) {
 
         inferior = &inferiors[curr_inferior_idx % MAX_PDS];
         inferior->enabled = true;
-        inferior->id = id;
+        inferior->id = inferior_id;
         inferior->gdb_id = ++curr_inferior_idx;
         inferior->vspace = vspace;
         inferior->curr_thread_idx = 0;
@@ -233,15 +264,30 @@ gdb_inferior_t *gdb_register_inferior(uint64_t id, seL4_CPtr vspace) {
         memset(inferior->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
         memset(inferior->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
         memset(inferior->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
-        break;
+        return DebuggerError_NoError;
     }
 
-    return inferior;
+    return DebuggerError_InsufficientResources;
 }
 
-gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint64_t id, seL4_CPtr tcb) {
+DebuggerError gdb_register_thread(uint64_t inferior_id, uint64_t thread_id, seL4_CPtr tcb, char *output) {
+    /* Make sure the inferior exists */
+    gdb_inferior_t *inferior = lookup_inferior_from_id(inferior_id);
+    if (!inferior) {
+        return DebuggerError_InvalidArguments;
+    }
+
+    /* Check that a thread with this ID doesn't already exist */
+    gdb_thread_t *thread = lookup_thread_from_id(inferior, thread_id);
+    if (thread) {
+        if (thread->tcb == tcb) {
+            return DebuggerError_AlreadyRegistered;
+        } else {
+            return DebuggerError_InvalidArguments;
+        }
+    }
+
     int end_idx = inferior->curr_thread_idx + MAX_THREADS;
-    gdb_thread_t *thread = NULL;
 
     for (; inferior->curr_thread_idx < end_idx; inferior->curr_thread_idx++) {
         if (inferior->threads[inferior->curr_thread_idx % MAX_THREADS].enabled) {
@@ -253,7 +299,7 @@ gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint64_t id, seL4_CP
         thread->wakeup = false;
         thread->ss_enabled = false;
         thread->inferior = inferior;
-        thread->id = id;
+        thread->id = thread_id;
         thread->gdb_id = ++inferior->curr_thread_idx;
         thread->tcb = tcb;
 
@@ -269,14 +315,20 @@ gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint64_t id, seL4_CP
             thread_enable_nth_hw_watchpoint(thread, i);
         }
 
-        break;
+        if (!target_thread) {
+            target_thread = thread;
+        } else {
+            strlcpy(output, "T05clone:", BUFSIZE);
+            char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+            strlcpy(ptr, ";thread:", BUFSIZE);
+            ptr = write_thread_id(target_thread, output + strlen(output), BUFSIZE - strlen(output));
+            strlcpy(ptr, ";", BUFSIZE);
+        }
+
+        return DebuggerError_NoError;
     }
 
-    if (!target_thread && thread) {
-        target_thread = thread;
-    }
-
-    return thread;
+    return DebuggerError_InsufficientResources;
 }
 
 static void handle_read_mem(char *ptr, char *output) {
@@ -621,7 +673,7 @@ bool gdb_handle_packet(char *input, char *output, bool *detached) {
     return false;
 }
 
-static bool handle_ss_hwbreak_swbreak_exception(gdb_thread_t *thread, seL4_Word reason, char *output) {
+static void handle_ss_hwbreak_swbreak_exception(gdb_thread_t *thread, seL4_Word reason, char *output) {
     strlcpy(output, "T05thread:", BUFSIZE);
     char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
     if (reason == seL4_SoftwareBreakRequest) {
@@ -632,8 +684,6 @@ static bool handle_ss_hwbreak_swbreak_exception(gdb_thread_t *thread, seL4_Word 
 
     /* As we include a thread-id, GDB expects the target inferior to be the thread that we set */
     target_thread = thread;
-
-    return (reason == seL4_SingleStep);
 }
 
 static void handle_watchpoint_exception(gdb_thread_t *thread, seL4_Word bp_num, seL4_Word trigger_address, char *output) {
@@ -697,29 +747,80 @@ static bool handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, char 
     return false;
 }
 
-bool gdb_handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, seL4_Word *reply_mr, char *output) {
-    if (exception_reason  == seL4_Fault_DebugException) {
-        return handle_debug_exception(thread, reply_mr, output);
+/*
+ * Suspend all threads (that GDB is aware of) in the system
+ */
+void suspend_system() {
+    for (int i = 0; i < MAX_PDS; i++) {
+        gdb_inferior_t *inferior = &inferiors[i];
+        if (!inferior->enabled) continue;
+
+        for (int j = 0; j < MAX_THREADS; j++) {
+            gdb_thread_t *thread = &inferior->threads[j];
+            if (!thread->enabled) continue;
+
+            seL4_TCB_Suspend(thread->tcb);
+        }
     }
-    return handle_fault(thread, exception_reason, output);
 }
 
-void gdb_thread_spawn(gdb_thread_t *thread, char *output) {
-    strlcpy(output, "T05clone:", BUFSIZE);
-    char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
-    strlcpy(ptr, ";thread:", BUFSIZE);
-    ptr = write_thread_id(target_thread    , output + strlen(output), BUFSIZE - strlen(output));
-    strlcpy(ptr, ";", BUFSIZE);
+/*
+ * Resume the threads in the system that are meant to be woken up
+ */
+void resume_system() {
+   for (int i = 0; i < MAX_PDS; i++) {
+        gdb_inferior_t *inferior = &inferiors[i];
+        if (!inferior->enabled) continue;
 
-    return;
+        for (int j = 0; j < MAX_THREADS; j++) {
+            gdb_thread_t *thread = &inferior->threads[j];
+            if (!thread->enabled || !thread->wakeup) continue;
+
+            seL4_TCB_Resume(thread->tcb);
+        }
+    }
 }
 
-void gdb_thread_exit(gdb_thread_t *thread, char* output) {
+
+DebuggerError gdb_handle_fault(uint64_t inferior_id, uint64_t thread_id, seL4_Word exception_reason,
+                      seL4_Word *reply_mr, char *output, bool *have_reply) {
+    /* Make sure the inferior exists */
+    gdb_inferior_t *inferior = lookup_inferior_from_id(inferior_id);
+    if (!inferior) {
+        return DebuggerError_InvalidArguments;
+    }
+
+    /* Make sure the thread exists */
+    gdb_thread_t *thread = lookup_thread_from_id(inferior, thread_id);
+    if (!thread) {
+        return DebuggerError_InvalidArguments;
+    }
+
+    if (exception_reason  == seL4_Fault_DebugException) {
+        *have_reply = handle_debug_exception(thread, reply_mr, output);
+    } else {
+        *have_reply = handle_fault(thread, exception_reason, output);
+    }
+
+    return DebuggerError_NoError;
+}
+
+DebuggerError gdb_thread_exit(uint64_t inferior_id, uint64_t thread_id, char* output) {
+    /* Make sure the inferior exists */
+    gdb_inferior_t *inferior = lookup_inferior_from_id(inferior_id);
+    if (!inferior) {
+        return DebuggerError_InvalidArguments;
+    }
+
+    /* Lookup the thread */
+    gdb_thread_t *thread = lookup_thread_from_id(inferior, thread_id);
+    if (!thread) {
+        return DebuggerError_InvalidArguments;
+    }
+
     thread->enabled = false;
-
     strlcpy(output, "w00;", BUFSIZE);
     char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
-
-    return;
+    return DebuggerError_NoError;
 }
 
