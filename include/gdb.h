@@ -78,21 +78,22 @@ struct inferior {
     hw_watch_t hardware_watchpoints[seL4_NumExclusiveWatchpoints];
 };
 
-/* We expose the current target inferior and list of inferiors to users of the library */
-
-/* @alwin: The reason I did this originally was because I thought that the user might have
- * a more efficient way of linking an id to an inferior than libGDB does, but I think this is no
- * longer the case with the thread allocation strategy used in libGDB. It would be better for
- * users to just provide inferior/target id and have libGDB use a hashmap or something internally.
- */
-extern gdb_thread_t *target_thread;
-extern gdb_inferior_t inferiors[MAX_PDS];
-
 typedef enum continue_type {
     ctype_dont = 0,
     ctype_continue,
     ctype_ss,
 } cont_type_t;
+
+enum DebuggerError {
+    DebuggerError_NoError = 0,
+    DebuggerError_AlreadyRegistered,
+    DebuggerError_InsufficientResources,
+    DebuggerError_InvalidArguments,
+};
+typedef enum DebuggerError DebuggerError;
+
+void suspend_system();
+void resume_system();
 
 bool set_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address);
 bool thread_enable_nth_hw_breakpoint(gdb_thread_t *thread, int n);
@@ -119,14 +120,14 @@ char *hex2regs(seL4_UserContext *regs, char *buf);
 char *inf_mem2hex(gdb_thread_t *inferior, seL4_Word mem, char *buf, int size, seL4_Word *error);
 seL4_Word inf_hex2mem(gdb_thread_t *inferior, char *buf, seL4_Word mem, int size);
 
-gdb_inferior_t *gdb_register_inferior(uint64_t id, seL4_CPtr vspace);
-gdb_thread_t *gdb_register_thread(gdb_inferior_t *inferior, uint64_t id, seL4_CPtr tcb);
+DebuggerError gdb_register_inferior(uint64_t inferior_id, seL4_CPtr vspace);
+DebuggerError gdb_register_thread(uint64_t inferior_id, uint64_t id, seL4_CPtr tcb, char *output);
 void gdb_thread_spawn(gdb_thread_t *thread, char *output);
-void gdb_thread_exit(gdb_thread_t *thread, char *output);
+DebuggerError gdb_thread_exit(uint64_t inferior_id, uint64_t thread_id, char *output);
 
 // int gdb_register_inferior_fork(uint8_t id, char *output);
 // int gdb_register_inferior_exec(uint8_t id, char *elf_name, seL4_CPtr tcb, seL4_CPtr vspace, char *output);
-bool gdb_handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, seL4_Word *reply_mr, char *output);
-
+DebuggerError gdb_handle_fault(uint64_t inferior_id, uint64_t thread_id, seL4_Word exception_reason,
+                               seL4_Word *reply_mr, char *output, bool* have_reply);
 bool gdb_handle_packet(char *input, char *output, bool *detached);
 
