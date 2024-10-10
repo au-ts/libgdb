@@ -15,7 +15,6 @@
 #endif /* MICROKIT */
 
 //#define DEBUG_PRINTS 1
-// @alwin: increase this
 #define GDB_INFERIOR_ID_TO_IDX(x) ((x - 1) % MAX_PDS)
 #define GDB_THREAD_ID_TO_IDX(x) ((x - 1) % MAX_THREADS)
 
@@ -319,9 +318,9 @@ DebuggerError gdb_register_thread(uint64_t inferior_id, uint64_t thread_id, seL4
             target_thread = thread;
         } else {
             strlcpy(output, "T05clone:", BUFSIZE);
-            char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+            char *ptr = write_thread_id(thread, output + strnlen(output, BUFSIZE), BUFSIZE - strnlen(output, BUFSIZE));
             strlcpy(ptr, ";thread:", BUFSIZE);
-            ptr = write_thread_id(target_thread, output + strlen(output), BUFSIZE - strlen(output));
+            ptr = write_thread_id(target_thread, output + strnlen(output, BUFSIZE), BUFSIZE - strnlen(output, BUFSIZE));
             strlcpy(ptr, ";", BUFSIZE);
         }
 
@@ -507,11 +506,14 @@ void handle_sig_interrupt(char *output) {
     strlcpy(output, "S02", BUFSIZE);
 }
 
+bool handled[MAX_PDS][MAX_THREADS] = {0};
+
+
 void handle_vcont(char *input, char *output) {
     /* Skip the original vcont prefix */
     input += 5;
 
-    bool handled[MAX_PDS][MAX_THREADS] = {0};
+    memset(handled, 0, MAX_PDS * MAX_THREADS * sizeof(bool));
 
     while (*input != 0) {
         assert(*input++ == ';');
@@ -558,7 +560,7 @@ void handle_vcont(char *input, char *output) {
 
             gdb_inferior_t *inferior = lookup_inferior_from_gdb_id(proc_id);
 
-            /* If thread_id == 1, we want to apply the action to all the threads in the inferior  */
+            /* If thread_id == -1, we want to apply the action to all the threads in the inferior  */
             int i = 0;
             int n = MAX_THREADS;
             if (thread_id != THREAD_ID_ALL) {
@@ -597,7 +599,6 @@ static void handle_detach(char *ptr, char *output) {
 
         gdb_inferior_t *inferior = &inferiors[i];
 
-        /* @alwin: This is kinda stupid and slow */
         /* Clear any breakpoints/watchpoints */
         for (int i = 0; i < MAX_SW_BREAKS; i++) {
             unset_software_breakpoint(inferior, inferior->software_breakpoints[i].addr);
@@ -675,7 +676,7 @@ bool gdb_handle_packet(char *input, char *output, bool *detached) {
 
 static void handle_ss_hwbreak_swbreak_exception(gdb_thread_t *thread, seL4_Word reason, char *output) {
     strlcpy(output, "T05thread:", BUFSIZE);
-    char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+    char *ptr = write_thread_id(thread, output + strnlen(output, BUFSIZE), BUFSIZE - strnlen(output, BUFSIZE));
     if (reason == seL4_SoftwareBreakRequest) {
         strlcpy(ptr, ";swbreak:;", BUFSIZE);
     } else {
@@ -689,7 +690,7 @@ static void handle_ss_hwbreak_swbreak_exception(gdb_thread_t *thread, seL4_Word 
 static void handle_watchpoint_exception(gdb_thread_t *thread, seL4_Word bp_num, seL4_Word trigger_address, char *output) {
 
     strlcpy(output, "T05thread:", BUFSIZE);
-    char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+    char *ptr = write_thread_id(thread, output + strnlen(output, BUFSIZE), BUFSIZE - strnlen(output, BUFSIZE));
     switch (thread->inferior->hardware_watchpoints[bp_num - seL4_FirstWatchpoint].type) {
         case seL4_BreakOnWrite:
             strlcpy(ptr, ";watch:", BUFSIZE);
@@ -738,7 +739,7 @@ static bool handle_fault(gdb_thread_t *thread, seL4_Word exception_reason, char 
     // @alwin: Currentlywe just doing SIGABRT for every kind of fault that happens, this probably could be better?
 
     strlcpy(output, "T06thread:", BUFSIZE);
-    char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+    char *ptr = write_thread_id(thread, output + strnlen(output, BUFSIZE), BUFSIZE - strnlen(output, BUFSIZE));
     strlcpy(ptr, ";", BUFSIZE);
 
     /* As we include a thread-id, GDB expects the target inferior to be the thread that we set */
@@ -820,7 +821,7 @@ DebuggerError gdb_thread_exit(uint64_t inferior_id, uint64_t thread_id, char* ou
 
     thread->enabled = false;
     strlcpy(output, "w00;", BUFSIZE);
-    char *ptr = write_thread_id(thread, output + strlen(output), BUFSIZE - strlen(output));
+    char *ptr = write_thread_id(thread, output + strnlen(output, BUFSIZE), BUFSIZE - strnlen(output, BUFSIZE));
     return DebuggerError_NoError;
 }
 

@@ -2,43 +2,43 @@
 <system>
 
     <!-- odroidc2 -->
-	<memory_region name="uart" size="0x10000" phys_addr="0xc8100000" />
+	<!-- <memory_region name="uart" size="0x10000" phys_addr="0xc8100000" /> -->
 
     <!-- odroidc4 -->
     <!-- <memory_region name="uart" size="0x1_000" phys_addr="0xff803000" /> -->
 
     <!-- For the PL011 -->
-    <!-- <memory_region name="uart" size="0x10000" phys_addr="0x9000000" /> -->
+    <!-- <memory_region name="uart" size="0x1_000" phys_addr="0x9000000" /> -->
 
-    <memory_region name="tx_data_driver" size="0x200_000" page_size="0x200_000" />
-    <memory_region name="tx_data_client" size="0x200_000" page_size="0x200_000" />
-    <memory_region name="rx_data_driver" size="0x200_000" page_size="0x200_000" />
-    <memory_region name="rx_data_client" size="0x200_000" page_size="0x200_000" />
+    <!-- For virtio  console -->
+    <memory_region name="uart" size="0x1_000" phys_addr="0xa003000" />
+    <memory_region name="hw_ring_buffer" size="0x10_000" />
+    <memory_region name="driver_virtio_tx_data" size="0x1000" />
+    <memory_region name="driver_virtio_rx_data" size="0x1000" />
+
+
+    <memory_region name="tx_data_driver" size="0x4_000" />
+    <memory_region name="rx_data_driver" size="0x2_000" />
+    <memory_region name="tx_data_client" size="0x2_000" />
+    <memory_region name="rx_data_client" size="0x2_000" />
 
     <!-- shared memory for ring buffer mechanism : serial -->
-    <memory_region name="rx_free_serial_driver" size="0x200_000" page_size="0x200_000"/>
-    <memory_region name="rx_active_serial_driver" size="0x200_000" page_size="0x200_000"/>
-    <memory_region name="tx_free_serial_driver" size="0x200_000" page_size="0x200_000"/>
-    <memory_region name="tx_active_serial_driver" size="0x200_000" page_size="0x200_000"/>
-
-    <memory_region name="tx_free_serial_client" size="0x200_000" page_size="0x200_000"/>
-    <memory_region name="tx_active_serial_client" size="0x200_000" page_size="0x200_000"/>
-    <memory_region name="rx_free_serial_client" size="0x200_000" page_size="0x200_000"/>
-    <memory_region name="rx_active_serial_client" size="0x200_000" page_size="0x200_000"/>
+    <memory_region name="rx_queue_driver" size="0x1000"/>
+    <memory_region name="tx_queue_driver" size="0x1000"/>
+    <memory_region name="rx_queue_client" size="0x1000"/>
+    <memory_region name="tx_queue_client" size="0x1000"/>
 
 
     <protection_domain name="debugger" priority="97">
         <program_image path="debugger.elf" />
 
         <!-- shared memory for ring buffer mechanism -->
-        <map mr="rx_free_serial_client" vaddr="0x4_800_000" perms="rw" cached="true" setvar_vaddr="rx_free" />
-        <map mr="rx_active_serial_client" vaddr="0x5_000_000" perms="rw" cached="true" setvar_vaddr="rx_active" />
+        <map mr="rx_queue_client" vaddr="0x4_000_000" perms="rw" cached="true" setvar_vaddr="rx_queue" />
+        <map mr="tx_queue_client" vaddr="0x4_001_000" perms="rw" cached="true" setvar_vaddr="tx_queue" />
 
-        <map mr="tx_free_serial_client" vaddr="0x3_400_000" perms="rw" cached="true" setvar_vaddr="tx_free" />
-        <map mr="tx_active_serial_client" vaddr="0x3_600_000" perms="rw" cached="true" setvar_vaddr="tx_active" />
 
-        <map mr="tx_data_client" vaddr="0x2_400_000" perms="rw" cached="true" setvar_vaddr="tx_data" />
-        <map mr="rx_data_client" vaddr="0x2_800_000" perms="rw" cached="true" setvar_vaddr="rx_data" />
+        <map mr="rx_data_client" vaddr="0x4_002_000" perms="rw" cached="true" setvar_vaddr="rx_data" />
+        <map mr="tx_data_client" vaddr="0x4_004_000" perms="rw" cached="true" setvar_vaddr="tx_data" />
 
         <protection_domain name="ping" id="0" priority="96">
             <program_image path="ping.elf" />
@@ -49,76 +49,77 @@
     </protection_domain>
 
     <protection_domain name="uart_driver" priority="100" pp="true">
-        <program_image path="uart_driver.elf" />
+        <!-- For normal UART drivers -->
+        <!-- <program_image path="uart_driver.elf" /> -->
+
+        <!-- For virtconsole driver -->
+        <program_image path="serial_driver.elf" />
+
         <map mr="uart" vaddr="0x5_000_000" perms="rw" cached="false" setvar_vaddr="uart_base" />
 
-        <!-- shared memory for ring buffer mechanism -->
-        <map mr="rx_free_serial_driver" vaddr="0x4_000_000" perms="rw" cached="true" setvar_vaddr="rx_free" />
-        <map mr="rx_active_serial_driver" vaddr="0x4_200_000" perms="rw" cached="true" setvar_vaddr="rx_active" />
-        <map mr="tx_free_serial_driver" vaddr="0x4_400_000" perms="rw" cached="true" setvar_vaddr="tx_free" />
-        <map mr="tx_active_serial_driver" vaddr="0x4_600_000" perms="rw" cached="true" setvar_vaddr="tx_active" />
+        <map mr="rx_queue_driver" vaddr="0x4_000_000" perms="rw" cached="true" setvar_vaddr="rx_queue" />
+        <map mr="tx_queue_driver" vaddr="0x4_001_000" perms="rw" cached="true" setvar_vaddr="tx_queue" />
 
-        <map mr="tx_data_driver" vaddr="0x2_200_000" perms="rw" cached="true" />
-        <map mr="rx_data_driver" vaddr="0x2_600_000" perms="rw" cached="true" />
+        <map mr="rx_data_driver" vaddr="0x4_002_000" perms="rw" cached="true" setvar_vaddr="rx_data" />
+        <map mr="tx_data_driver" vaddr="0x4_004_000" perms="rw" cached="true" setvar_vaddr="tx_data" />
 
         <!-- UART interrupt (meson) -->
-        <irq irq="225" id="1" trigger="edge" />
+        <!-- <irq irq="225" id="1" trigger="edge" /> -->
 
         <!-- UART interrupt (PL011) -->
-        <!-- <irq irq="33" id="1" trigger="edge" /> -->
+        <!-- <irq irq="33" id="0"/> -->
+
+        <!-- UART interrupt (virtio-console) -->
+         <irq irq="79" id="0" trigger="edge" />
+
+         <!-- virtio queues and DMA regions (virtio-console) -->
+        <map mr="hw_ring_buffer" vaddr="0x2_200_000" perms="rw" cached="false" setvar_vaddr="hw_ring_buffer_vaddr" />
+        <setvar symbol="hw_ring_buffer_paddr" region_paddr="hw_ring_buffer" />
+
+        <map mr="driver_virtio_tx_data" vaddr="0x6_000_000" cached="false" setvar_vaddr="virtio_tx_char" />
+        <setvar symbol="virtio_tx_char_paddr" region_paddr="driver_virtio_tx_data" />
+        <map mr="driver_virtio_rx_data" vaddr="0x6_001_000" cached="false" setvar_vaddr="virtio_rx_char" />
+        <setvar symbol="virtio_rx_char_paddr" region_paddr="driver_virtio_rx_data" />
 
     </protection_domain>
 
-    <protection_domain name="virt_tx" priority="99" pp="true">
-        <program_image path="serial_tx_virt.elf" />
+    <protection_domain name="serial_virt_tx" priority="99" pp="true">
+        <program_image path="serial_virt_tx.elf" />
 
-         <!-- shared memory for driver/virt ring buffer mechanism -->
-        <map mr="tx_free_serial_driver" vaddr="0x4_400_000" perms="rw" cached="true" setvar_vaddr="tx_free_driver" />
-        <map mr="tx_active_serial_driver" vaddr="0x4_600_000" perms="rw" cached="true" setvar_vaddr="tx_active_driver" />
+        <map mr="tx_queue_driver" vaddr="0x4_000_000" perms="rw" cached="true" setvar_vaddr="tx_queue_drv" />
+        <map mr="tx_queue_client" vaddr="0x4_001_000" perms="rw" cached="true" setvar_vaddr="tx_queue_cli0" />
 
-        <!-- shared memory for virt/client ring buffer mechanism -->
-        <map mr="tx_free_serial_client" vaddr="0x3_400_000" perms="rw" cached="true" setvar_vaddr="tx_free_client" />
-        <map mr="tx_active_serial_client" vaddr="0x3_600_000" perms="rw" cached="true" setvar_vaddr="tx_active_client" />
-
-        <map mr="tx_data_driver" vaddr="0x2_200_000" perms="rw" cached="true" setvar_vaddr="tx_data_driver" />
-
-        <map mr="tx_data_client" vaddr="0x2_400_000" perms="rw" cached="true" setvar_vaddr="tx_data_client" />
+        <map mr="tx_data_driver" vaddr="0x4_003_000" perms="rw" cached="true" setvar_vaddr="tx_data_drv" />
+        <map mr="tx_data_client" vaddr="0x4_007_000" perms="r" cached="true" setvar_vaddr="tx_data_cli0" />
     </protection_domain>
 
-    <protection_domain name="virt_rx" priority="98" pp="true">
-        <program_image path="serial_rx_virt.elf" />
+    <protection_domain name="serial_virt_rx" priority="98" pp="true">
+        <program_image path="serial_virt_rx.elf" />
+        <map mr="rx_queue_driver" vaddr="0x4_000_000" perms="rw" cached="true" setvar_vaddr="rx_queue_drv" />
+        <map mr="rx_queue_client" vaddr="0x4_001_000" perms="rw" cached="true" setvar_vaddr="rx_queue_cli0" />
 
-         <!-- shared memory for driver/virt ring buffer mechanism -->
-        <map mr="rx_free_serial_driver" vaddr="0x4_000_000" perms="rw" cached="true" setvar_vaddr="rx_free_driver" />
-        <map mr="rx_active_serial_driver" vaddr="0x4_200_000" perms="rw" cached="true" setvar_vaddr="rx_active_driver" />
-
-        <!-- shared memory for virt/client ring buffer mechanism -->
-        <map mr="rx_free_serial_client" vaddr="0x4_800_000" perms="rw" cached="true" setvar_vaddr="rx_free_client" />
-        <map mr="rx_active_serial_client" vaddr="0x5_000_000" perms="rw" cached="true" setvar_vaddr="rx_active_client" />
-
-        <map mr="rx_data_driver" vaddr="0x2_600_000" perms="rw" cached="true" setvar_vaddr="rx_data_driver" />
-        <map mr="rx_data_client" vaddr="0x2_800_000" perms="rw" cached="true" setvar_vaddr="rx_data_client" />
+        <map mr="rx_data_driver" vaddr="0x4_003_000" perms="r" cached="true" setvar_vaddr="rx_data_drv" />
+        <map mr="rx_data_client" vaddr="0x4_005_000" perms="rw" cached="true" setvar_vaddr="rx_data_cli0" />
     </protection_domain>
-
 
     <channel>
-        <end pd="debugger" id="9"/>
-        <end pd="virt_tx" id="1"/>
+        <end pd="uart_driver" id="1"/>
+        <end pd="serial_virt_tx" id="0"/>
     </channel>
 
     <channel>
-        <end pd="uart_driver" id="8"/>
-        <end pd="virt_tx" id="9"/>
+        <end pd="uart_driver" id="2"/>
+        <end pd="serial_virt_rx" id="0"/>
+    </channel>
+
+    <channel>
+        <end pd="debugger" id="0"/>
+        <end pd="serial_virt_tx" id="1"/>
     </channel>
 
    <channel>
-        <end pd="debugger" id="11"/>
-        <end pd="virt_rx" id="1"/>
-    </channel>
-
-    <channel>
-        <end pd="uart_driver" id="10"/>
-        <end pd="virt_rx" id="11"/>
+        <end pd="debugger" id="1"/>
+        <end pd="serial_virt_rx" id="1"/>
     </channel>
 
     <channel>

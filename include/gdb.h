@@ -6,15 +6,14 @@
 
 #pragma once
 
-// @alwin: Ideally this shouldn't depend on microkit
 #ifdef MICROKIT
 #include <microkit.h>
 #else
 #include <sel4/sel4.h>
 #include <sel4/constants.h>
+#endif /* MICROKIT */
 #include <stdint.h>
 #include <stdbool.h>
-#endif /* MICROKIT */
 #include <sel4/sel4_arch/types.h>
 
 #define MAX_PDS 64

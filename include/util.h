@@ -9,8 +9,9 @@
 #include <microkit.h>
 #else
 #include <sel4/sel4.h>
-#include <stdint.h>
 #endif /* MICROKIT */
+#include <stdint.h>
+#include <stddef.h>
 
 #ifdef MICROKIT
 
@@ -33,9 +34,11 @@ static void assert_fail(
     } while(0)
 
 seL4_Word strlcpy(char *dest, const char *src, seL4_Word size);
-int PURE strncmp(const char *s1, const char *s2, int n);
+//int PURE strncmp(const char *s1, const char *s2, int n);
 seL4_Word strnlen(const char *s, seL4_Word maxlen);
 void *memchr (const void *s, int c, seL4_Word size);
+void *memset(void *dest, int c, size_t n);
+
 
 #endif /* MICROKIT */
 
