@@ -21,6 +21,7 @@ export EXAMPLE_DIR := $(abspath .)
 
 CC := aarch64-none-elf-gcc
 LD := aarch64-none-elf-ld
+RANLIB := aarch64-none-elf-ranlib
 MICROKIT_TOOL ?= $(MICROKIT_SDK)/bin/microkit
 
 IMAGE_FILE := $(BUILD_DIR)/loader.img
