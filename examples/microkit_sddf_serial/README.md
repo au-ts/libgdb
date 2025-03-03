@@ -22,13 +22,13 @@ examples, you will need to adjust the `example.system` file as necessary.
 ### QEMU booting instructions
 
 ```
-qemu-system-aarch64 \
-       -machine virt,\
+qemu-system-aarch64 -machine virt,virtualization=on \
        -cpu cortex-a53 \
-       -m size=2048M \
-       -nographic \
-       -serial mon:pty \
-       -device loader,file=bin/loader.img,addr=0x70000000,cpu-num=0
+       -device loader,file=build/loader.img,addr=0x70000000,cpu-num=0 \
+       -global virtio-mmio.force-legacy=false \
+       -device virtio-serial-device -chardev pty,id=virtcon -device virtconsole,chardev=virtcon \
+       -m size=2G \
+       -nographic
 ```
 
 This configuration will redirect the output to a virtual console, which you can connect GDB to.
