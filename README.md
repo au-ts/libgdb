@@ -24,9 +24,9 @@ contains an sDDF subsystem with a separate UART driver as well as recieve and tr
 This library depends on seL4 and microkit changes that have not yet been upstreamed. As such, a custom version of the
 microkit will have to be built using the following sources.
 
-microkit: [https://github.com/alwin-joshy/microkit/tree/dev\_gdb](https://github.com/alwin-joshy/microkit/tree/dev_gdb)
+microkit: [https://github.com/alwin-joshy/microkit/tree/dev\_gdb](https://github.com/alwin-joshy/microkit/tree/gdb_2025)
 
-seL4: [https://github.com/alwin-joshy/seL4/tree/microkit\_gdb\_final](https://github.com/alwin-joshy/seL4/tree/microkit_gdb_final)
+seL4: [https://github.com/alwin-joshy/seL4/tree/microkit\_gdb\_final](https://github.com/alwin-joshy/seL4/tree/gdb_2025)
 
 The examples depend on the `aarch64-none-elf` toolchain for compilation, and libGDB has only been tested with `aarch64-none-elf-gdb`,
 though any GDB that has architecture support for aarch64 should suffice.
