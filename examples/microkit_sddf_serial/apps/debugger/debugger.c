@@ -10,10 +10,12 @@
 #include <util.h>
 #include <libco.h>
 #include <stddef.h>
-//#include <sddf/serial/util.h>
+#include <sddf/serial/config.h>
 #include <sddf/serial/queue.h>
 #include <sddf/util/printf.h>
 #include <serial_config.h>
+
+__attribute__((__section__(".serial_client_config"))) serial_client_config_t config;
 
 typedef enum event_state {
     eventState_none = 0,
@@ -28,9 +30,6 @@ cothread_t t_event, t_main, t_fault;
 #define STACK_SIZE 4096
 static char t_main_stack[STACK_SIZE];
 static char t_fault_stack[STACK_SIZE];
-
-#define PRINT_CHANNEL 0
-#define GETCHAR_CHANNEL 1
 
 /* Input buffer */
 static char input[BUFSIZE];
@@ -64,17 +63,12 @@ void gdb_put_char(char c) {
 char gdb_get_char(event_state_t new_state) {
     while (serial_queue_empty(&rx_queue_handle, rx_queue_handle.queue->head)) {
         // Wait for the virt to tell us some input has come through
-        serial_request_producer_signal(&rx_queue_handle);
         state = new_state;
         co_switch(t_event);
     }
 
     char c;
-    serial_dequeue(&rx_queue_handle, &rx_queue_handle.queue->head, &c);
-
-    if (serial_queue_empty(&rx_queue_handle, rx_queue_handle.queue->head)) {
-        serial_request_producer_signal(&rx_queue_handle);
-    }
+    serial_dequeue(&rx_queue_handle, &c);
 
     return c;
 }
@@ -197,8 +191,9 @@ static void event_loop() {
 }
 
 void init() {
-    /* Register all of the inferiors  */
+    assert(serial_config_check_magic(&config));
 
+    /* Register all of the inferiors  */
     for (int i = 0; i < NUM_DEBUGEES; i++) {
         gdb_register_inferior(i, BASE_VSPACE_CAP + i);
         gdb_register_thread(i, 0, BASE_TCB_CAP + i, output);
@@ -208,8 +203,10 @@ void init() {
     suspend_system();
 
     /* Set up sDDF ring buffers */
-    serial_cli_queue_init_sys(microkit_name, &rx_queue_handle, rx_queue, rx_data, &tx_queue_handle, tx_queue, tx_data);
-    serial_putchar_init(PRINT_CHANNEL, &tx_queue_handle);
+    serial_queue_init(&rx_queue_handle, config.rx.queue.vaddr, config.rx.data.size, config.rx.data.vaddr);
+    serial_queue_init(&tx_queue_handle, config.tx.queue.vaddr, config.tx.data.size, config.tx.data.vaddr);
+
+    serial_putchar_init(config.tx.id, &tx_queue_handle);
 
     microkit_dbg_puts("Awaiting GDB connection...");
 

@@ -7,7 +7,7 @@
 #include <microkit.h>
 #include <stddef.h>
 
-#define PINGPONG_CHANNEL 1
+#define PINGPONG_CHANNEL 0
 
 void init() {
 	int a = 1;

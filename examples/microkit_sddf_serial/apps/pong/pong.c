@@ -6,7 +6,7 @@
 
 #include <microkit.h>
 
-#define PINGPONG_CHANNEL 1
+#define PINGPONG_CHANNEL 0
 
 void notified(microkit_channel ch) {
     switch (ch) {
