@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+    {
+        "type": "gdb",
+        "request": "attach",
+        "gdbpath": "aarch64-none-elf-gdb",
+        "name": "Attach to gdbserver",
+        "executable": "./build/ping.elf",
+        "target": ":1234",
+        "remote": true,
+        "cwd": "${workspaceRoot}",
+        "valuesFormatting": "parseText",
+        "stopAtConnect": true,
+    },
+    // {
+    //     "name": "Debug",
+    //     "type": "gdb",
+    //     "request": "launch",
+    //     "target": "./build/ping.elf",
+    //     "cwd": "${workspaceRoot}",
+    //     "valuesFormatting": "parseText"
+    // }
+    ]
+}
