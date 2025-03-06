@@ -1,45 +1,68 @@
 #
-# Copyright 2023, UNSW
+# Copyright 2025, UNSW
 #
 # SPDX-License-Identifier: BSD-2-Clause
 #
 
+BUILD_DIR ?= build
+export MICROKIT_CONFIG ?= debug
+
 ifeq ($(strip $(MICROKIT_SDK)),)
 $(error MICROKIT_SDK must be specified)
 endif
+export override MICROKIT_SDK:=$(abspath ${MICROKIT_SDK})
 
-ifeq ($(strip $(BOARD)),)
-    $(error libGDB requires a BOARD)
+ifeq ($(strip $(TOOLCHAIN)),)
+	TOOLCHAIN := aarch64-none-elf
+	export TOOLCHAIN := aarch64-none-elf
+	export LIBC := $(dir $(realpath $(shell aarch64-none-elf-gcc --print-file-name libc.a)))
 endif
 
-export MICROKIT_SDK := $(realpath ${MICROKIT_SDK})
-export BUILD_DIR ?= $(abspath .)/build
-export BOARD ?= $(BOARD)
-export LIBGDB_DIR := $(abspath ../../)
-export SDDF := $(abspath ../../sddf)
-export EXAMPLE_DIR := $(abspath .)
+ifeq ($(strip $(MICROKIT_BOARD)), odroidc4)
+	export DRIV_DIR := meson
+	export SERIAL_DRIV_DIR := meson
+	export TIMER_DRV_DIR := meson
+	export CPU := cortex-a55
+else ifeq ($(strip $(MICROKIT_BOARD)), odroidc2)
+	export DRIV_DIR := meson
+	export SERIAL_DRIV_DIR := meson
+	export TIMER_DRV_DIR := meson
+	export CPU := cortex-a53
+else ifeq ($(strip $(MICROKIT_BOARD)), qemu_virt_aarch64)
+	export DRIV_DIR := virtio
+	export SERIAL_DRIV_DIR := arm
+	export TIMER_DRV_DIR := arm
+	export CPU := cortex-a53
+	QEMU := qemu-system-aarch64
+else
+$(error Unsupported MICROKIT_BOARD given)
+endif
 
-CC := aarch64-none-elf-gcc
-LD := aarch64-none-elf-ld
-RANLIB := aarch64-none-elf-ranlib
-MICROKIT_TOOL ?= $(MICROKIT_SDK)/bin/microkit
+export BUILD_DIR:=$(abspath ${BUILD_DIR})
+export MICROKIT_SDK:=$(abspath ${MICROKIT_SDK})
+export TOP := $(abspath $(dir ${MAKEFILE_LIST}))
+
+export CC := $(TOOLCHAIN)-gcc
+export LD := $(TOOLCHAIN)-ld
+export AS := $(TOOLCHAIN)-as
+export AR := $(TOOLCHAIN)-ar
+export RANLIB := $(TOOLCHAIN)-ranlib
+export OBJCOPY := $(TOOLCHAIN)-objcopy
+export MICROKIT_TOOL ?= $(MICROKIT_SDK)/bin/microkit
+export SDDF=$(abspath ../../sddf)
+export DEBUGGER_INCLUDE:=$(abspath .)/include
+export LIBGDB_DIR := $(abspath ../../)
 
 IMAGE_FILE := $(BUILD_DIR)/loader.img
 REPORT_FILE := $(BUILD_DIR)/report.txt
 
-all: $(IMAGE_FILE)
+all: ${IMAGE_FILE}
 
-${REPORT_FILE} ${IMAGE_FILE}: ${BUILD_DIR}/Makefile example.system FORCE
-	${MAKE} -C ${BUILD_DIR}
+qemu ${IMAGE_FILE} ${REPORT_FILE} clean clobber: ${BUILD_DIR}/Makefile FORCE
+	${MAKE}  -C ${BUILD_DIR} MICROKIT_SDK=${MICROKIT_SDK} $(notdir $@)
 
-
-${BUILD_DIR}/Makefile: sddf_serial_example.mk
+${BUILD_DIR}/Makefile: echo.mk
 	mkdir -p ${BUILD_DIR}
-	cp $< ${BUILD_DIR}/Makefile
+	cp echo.mk $@
 
-clean:
-	${MAKE} -C ${BUILD_DIR} $@
-clobber:
-	rm -rf ${BUILD_DIR}
-
-FORCE: ;
+FORCE:

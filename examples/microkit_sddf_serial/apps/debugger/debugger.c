@@ -98,7 +98,6 @@ char *get_packet(event_state_t new_state) {
         cksum = 0;
         xcksum = -1;
         count = 0;
-        (void) xcksum;
 
         /* Read until we see a # or the buffer is full */
         while (count < BUFSIZE - 1) {

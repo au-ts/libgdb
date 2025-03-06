@@ -714,11 +714,17 @@ static void handle_watchpoint_exception(gdb_thread_t *thread, seL4_Word bp_num, 
 }
 
 static bool handle_debug_exception(gdb_thread_t *thread, seL4_Word *reply_mr, char *output) {
+#ifndef MICROKIT
     seL4_Word reason = seL4_GetMR(seL4_DebugException_ExceptionReason);
     seL4_Word fault_ip = seL4_GetMR(seL4_DebugException_FaultIP);
     seL4_Word trigger_address = seL4_GetMR(seL4_DebugException_TriggerAddress);
     seL4_Word bp_num = seL4_GetMR(seL4_DebugException_BreakpointNumber);
-
+#else
+    seL4_Word reason = microkit_mr_get(seL4_DebugException_ExceptionReason);
+    seL4_Word fault_ip = microkit_mr_get(seL4_DebugException_FaultIP);
+    seL4_Word trigger_address = microkit_mr_get(seL4_DebugException_TriggerAddress);
+    seL4_Word bp_num = microkit_mr_get(seL4_DebugException_BreakpointNumber);
+#endif
     switch (reason) {
         case seL4_InstructionBreakpoint:
         case seL4_SingleStep:
