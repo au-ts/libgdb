@@ -13,11 +13,18 @@ fault handler for these threads. The main responsibilities of the debugger compo
 state in libGDB by registering inferiors, handle communication between the host machine (running GDB) and
 libGDB, and pass along faults to the library.
 
-This repository contains two examples - `microkit_sddf_serial` and `microkit_integrated_serial`.
+This repository contains three examples - `microkit_sddf_serial`, `microkit_sddf_net`, `microkit_integrated_serial`.
 
-These two examples show different ways that a debugger can be implemented. `microkit_integrated_serial`
-uses an internal polling UART driver for input whereas `microkit_sddf_serial` is sDDF-compliant and 
-contains an sDDF subsystem with a separate UART driver as well as recieve and transmit virtualisers.
+These examples show different ways that a debugger can be implemented.
+
+`microkit_integrated_serial` uses an internal polling UART driver for IO.
+
+`microkit_sddf_serial` uses an sDDF serial subsystem.
+
+`microkit_sddf_net` uses an sDDF-net subsystem and provides debugging over TCP on port 1234. This method works
+the best for connecting to GDB from tools like VSCode (an example launch.json config for the VSCode Native Debug
+extension is provided in the example directory).
+
 
 ## Dependencies
 
@@ -40,5 +47,8 @@ NOTE: These kernel and microkit changes may break other configurations. Use at y
 We provide both a CMakeLists.txt and libgdb.mk Makefile snippet. To see how either can be
 used, look at the `microkit_integrated_serial` and `microkit_sddf_serial` examples respectively.
 
-As mentioned before, libGDB was primarily designed for use with the seL4 Microkit, but should be simple
-to port to other frameworks. It currently depends on Microkit for seL4-related infomation.
+libGDB was primarily designed to be used with the seL4 microkit, but is actually OS framework agnostic.
+In our examples, we use the microkit and as such, pass in -DMICROKIT in the CFLAGS. If this is not provided,
+the library will not look for "microkit.h" and will instead try and find the definitions it requires from
+the standard "sel4/seL4.h" as in other seL4-based systems.
+
