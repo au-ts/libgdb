@@ -73,11 +73,11 @@ debugger.o: $(TOP)/apps/debugger/debugger.c
 tcp.o: $(TOP)/apps/debugger/tcp.c
 	$(CC) -c $(CFLAGS) $(TOP)/apps/debugger/tcp.c -o $@
 
-ping.o: $(TOP)/apps/ping/ping.c
-	$(CC) -c $(CFLAGS) $(TOP)/apps/ping/ping.c -o $@
+ping.o: $(TOP)/apps/ping.c
+	$(CC) -c $(CFLAGS) $(TOP)/apps/ping.c -o $@
 
-pong.o: $(TOP)/apps/pong/pong.c
-	$(CC) -c $(CFLAGS) $(TOP)/apps/pong/pong.c -o $@
+pong.o: $(TOP)/apps/pong.c
+	$(CC) -c $(CFLAGS) $(TOP)/apps/pong.c -o $@
 
 DEBUGGER_OBJS := debugger.o tcp.o
 
