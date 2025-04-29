@@ -91,7 +91,7 @@ debugger.elf: $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a
 
 # Need to build libsddf_util_debug.a because it's included in LIBS
 # for the unimplemented libc dependencies
-${IMAGES}: libsddf_util_debug.a
+${IMAGES}: libsddf_util_debug.a libgdb.a
 
 $(DTB): $(DTS)
 	dtc -q -I dts -O dtb $(DTS) > $(DTB)
@@ -124,7 +124,7 @@ include ${BENCHMARK}/benchmark.mk
 include ${TIMER_DRIVER}/timer_driver.mk
 include ${SERIAL_DRIVER}/serial_driver.mk
 include ${SERIAL_COMPONENTS}/serial_components.mk
-include $(LIBGDB_DIR)/libgdb.mk
+include $(LIBGDB_DIR)/src/libgdb.mk
 include ${SDDF}/libco/libco.mk
 
 qemu: $(IMAGE_FILE)
