@@ -19,19 +19,13 @@ ifeq ($(strip $(TOOLCHAIN)),)
 endif
 
 ifeq ($(strip $(MICROKIT_BOARD)), odroidc4)
-	export DRIV_DIR := meson
 	export SERIAL_DRIV_DIR := meson
-	export TIMER_DRV_DIR := meson
 	export CPU := cortex-a55
 else ifeq ($(strip $(MICROKIT_BOARD)), odroidc2)
-	export DRIV_DIR := meson
 	export SERIAL_DRIV_DIR := meson
-	export TIMER_DRV_DIR := meson
 	export CPU := cortex-a53
 else ifeq ($(strip $(MICROKIT_BOARD)), qemu_virt_aarch64)
-	export DRIV_DIR := virtio
-	export SERIAL_DRIV_DIR := arm
-	export TIMER_DRV_DIR := arm
+	export SERIAL_DRIV_DIR := virtio
 	export CPU := cortex-a53
 	QEMU := qemu-system-aarch64
 else
@@ -61,8 +55,8 @@ all: ${IMAGE_FILE}
 qemu ${IMAGE_FILE} ${REPORT_FILE} clean clobber: ${BUILD_DIR}/Makefile FORCE
 	${MAKE}  -C ${BUILD_DIR} MICROKIT_SDK=${MICROKIT_SDK} $(notdir $@)
 
-${BUILD_DIR}/Makefile: echo.mk
+${BUILD_DIR}/Makefile: sddf_serial_example.mk
 	mkdir -p ${BUILD_DIR}
-	cp echo.mk $@
+	cp sddf_serial_example.mk $@
 
 FORCE:

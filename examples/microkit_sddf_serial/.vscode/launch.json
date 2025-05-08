@@ -9,7 +9,7 @@
             "MIMode": "gdb",
             "cwd": "${workspaceFolder}",
             "miDebuggerPath": "aarch64-none-elf-gdb",
-            "miDebuggerServerAddress": "localhost:1234",
+            "miDebuggerServerAddress": "/dev/ttys006",
             "miDebuggerArgs": " -ex 'handle all print nostop noignore'",
             "stopAtConnect": true,
             "setupCommands": [
@@ -19,7 +19,8 @@
                     "ignoreFailures": true,
                     "detach-on-fork": "on",
                     "follow-fork-mode": "child",
-                    "scheduler-locking": "step"
+                    "scheduler-locking": "step",
+                    "serial baud": 115200,
                 }
             ]
         },

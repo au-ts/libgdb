@@ -264,7 +264,6 @@ void event_loop(){
     bool resume = false;
     while (1) {
         char *input = get_packet(eventState_waitingForInputEventLoop);
-        sddf_printf("Got packet => %s\n", input);
         if (detached || input[0] == 3) {
             /* If we got a ctrl-c packet, we should suspend the whole system */
             suspend_system();

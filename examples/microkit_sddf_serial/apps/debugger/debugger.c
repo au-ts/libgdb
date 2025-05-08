@@ -13,7 +13,7 @@
 #include <sddf/serial/config.h>
 #include <sddf/serial/queue.h>
 #include <sddf/util/printf.h>
-#include <serial_config.h>
+#include <sddf/serial/config.h>
 
 __attribute__((__section__(".serial_client_config"))) serial_client_config_t config;
 
@@ -179,7 +179,6 @@ static void event_loop() {
         resume = gdb_handle_packet(input, output, &detached);
 
         if (!resume || detached) {
-            microkit_dbg_puts("Putting packet\n");
             put_packet(output, eventState_waitingForInputEventLoop);
         }
 

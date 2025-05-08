@@ -1,9 +1,11 @@
-# Microkit sDDF serial example
+# Microkit sDDF net example
 
 ## Description
 
-This example uses the sDDF serial subsystem to allow the debugger component 
-to send/recieve information between the target and GDB.
+This example uses the sDDF net subsystem to allow the debugger component
+to communicate with GDB. Like other sDDF net clients, the debugger
+component includes the lwIP stack. The debugger component is configured
+to use port 1234 for communication with GDB.
 
 ## How to build
 
@@ -11,8 +13,8 @@ to send/recieve information between the target and GDB.
 make MICROKIT_SDK=PATH_TO_SDK MICROKIT_BOARD=BOARD_NAME
 ```
 
-This will create `build/loader.img`, which is a microkit image that can be run on
-the target machine.
+This will create `build/loader.img`, which is a microkit binary image that
+can be run on the target machine.
 
 ## Currently supported boards
 
@@ -20,61 +22,41 @@ The boards that have been tested to work are`[odroidc4, odroidc2, qemu_arm_virt]
 
 ### QEMU booting instructions
 
+To start running the image on qemu, simply run `make qemu`.
+
+This will build the example and run it using the following command:
+
 ```
 $(QEMU) -machine virt,virtualization=on \
-              -cpu cortex-a53 \
-              -serial mon:stdio \
-              -device loader,file=$(IMAGE_FILE),addr=0x70000000,cpu-num=0 \
-              -m size=2G \
-              -nographic \
-              -device virtio-serial-device \
-              -chardev pty,id=virtcon \
-              -device virtconsole,chardev=virtcon \
-              -global virtio-mmio.force-legacy=false \
-              -d guest_errors
-```
-
-This configuration enables the use of two serial ports. Debug printing will go to
-stdout, while GDB will use a virtual console, which you can connect GDB to. The virtual
-console that is used is chosen at runtime, and you will see output like the following
-at the beginning of the QEMU log:
-
-```
-char device redirected to /dev/ttys004 (label virtcon)
-```
-
-You can connect to this with GDB as you would any other serial device.
-
+		-cpu cortex-a53 \
+		-serial mon:stdio \
+		-device loader,file=$(IMAGE_FILE),addr=0x70000000,cpu-num=0 \
+		-m size=2G \
+		-nographic \
+		-device virtio-net-device,netdev=netdev0 \
+		-netdev user,id=netdev0,hostfwd=tcp::1234-:1234 \
+		-global virtio-mmio.force-legacy=false \
+		-d guest_errors
+````
 
 ### Getting it working on real hardware
 
-In all of the hardware examples, GDB and serial printing are sent to the same serial port. This
-means that GDB's output will be mixed up with the output of other things on the system. GDB is
-quite good at filtering all of this out and ignoring unrelated output from the board, but as a
-user, you will not be able to see any output from the board if GDB is connected to the serial.
-The best solution is to have GDB use a different serial port that it has exclusive access to, but
-if this is not possible, the serial demux tool can be used to split output streams. It will forward
-all GDB-related output to a virtual console, which GDB can connect to, and print non-GDB related
-output to its stdout. Note that even with this, GDB must have exclusive write-access to the serial
-port.
+To get the example working on real hardware, it must be attached to a network with
+a DHCP server. The debugger will attempt to obtain an IP address using lwIP and
+print this out.
 
-## How to use 
+## How to use (GDB CLI)
 
-`tools/config/.gdbinit`contains a GDB configuration script that may be useful. Note that this file
-is incomplete, and you will have to modify it so that you are connecting to the appropriate serial
-device and with the correct baud rate.These instructions assume you have correctly set up this
-configuration file. We also assume you have aarch64-none-elf-gdb, as the system is by default compiled
-using the aarch64-none-elf toolchain. If you used a different compiler, you should use the corresponding
-version of GDB.
+`tools/config/.gdbinit`contains a GDB configuration script that may be useful. This will work
+as-is for QEMU, but the IP address will need to be changed when working with real hardware.
+These instructions assume you have correctly set up this configuration file. We also assume
+you have aarch64-none-elf-gdb, as the system is by default compiled using the aarch64-none-elf
+toolchain. If you used a different compiler, you should use the corresponding version of GDB.
 
-You should first boot the system and wait until you see text that says something like
-"Awaiting GDB input..."
-
-Then, on a different console, you should enter the following commands:
 ```
 cd build
 aarch64-none-elf-gdb
-aarch64-none-elf-gdb> connect_serial
+aarch64-none-elf-gdb> connect_net
 ```
 
 At this point, you will be connected to the target system, which will be pre-registered with several
@@ -124,6 +106,6 @@ on this repository.
 
 The main limitation of this approach is that the VSCode debugger seems to really only be designed
 for a single inferior. There is a multi-target mode, but this seems to assume that the two targets
-are completely independent and communicate on separate connections, which is not ideal for serial
-as systems only have a limited number of serial ports. Using net would likely work better in this
-case, see the microkit_sddf_net example's README for more information.
+are completely independent and communicate on separate connections, which we currently don't support.
+This should be fairly simple to implement, only requiring a unique debugger component per component
+to be debugged. Please reach out if this might be useful to you. 

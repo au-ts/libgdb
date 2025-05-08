@@ -1,5 +1,5 @@
 #
-# Copyright 2022, UNSW
+# Copyright 2025, UNSW
 #
 # SPDX-License-Identifier: BSD-2-Clause
 #
@@ -46,6 +46,7 @@ CFLAGS := -mcpu=$(CPU) \
 	  -nostdlib \
 	  -I$(BOARD_DIR)/include \
 	  -I$(SDDF)/include \
+	  -I$(SDDF)/include/microkit \
 	  -I${DEBUGGER_INCLUDE}/lwip \
 	  -I${SDDF}/$(LWIPDIR)/include \
 	  -I${SDDF}/$(LWIPDIR)/include/ipv4 \
@@ -135,7 +136,7 @@ qemu: $(IMAGE_FILE)
 			-m size=2G \
 			-nographic \
 			-device virtio-net-device,netdev=netdev0 \
-			-netdev user,id=netdev0,hostfwd=tcp::1234-:1234,hostfwd=tcp::1237-:1237,hostfwd=udp::1235-:1235 \
+			-netdev user,id=netdev0,hostfwd=tcp::1234-:1234 \
 			-global virtio-mmio.force-legacy=false \
 			-d guest_errors
 
