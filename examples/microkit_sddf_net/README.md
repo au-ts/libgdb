@@ -93,13 +93,13 @@ stepped.
 
 ## How to use (VSCode)
 
-1. Install the (C/C++ extension)[https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools]
+1. Install the [C/C++ extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools)
 2. Set up a launch.json file like the one in .vscode/launch.json
 3. Start the target system and wait till it reaches the "Awating GDB connection..." prompt.
 4. Launch a debug session using the VSCode sidebar.
 
 This will allow you to use GDB within VSCode for debugging. For more information on how to do this,
-see (https://code.visualstudio.com/docs/debugtest/debugging)[https://code.visualstudio.com/docs/debugtest/debugging].
+see [https://code.visualstudio.com/docs/debugtest/debugging](https://code.visualstudio.com/docs/debugtest/debugging).
 We have tested breakpoints, watchpoints, and single-stepping, as well as the usual ability to read
 memory and registers. If there are any features you need that don't work, please make an issue
 on this repository.

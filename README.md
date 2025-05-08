@@ -21,9 +21,7 @@ These examples show different ways that a debugger can be implemented.
 
 `microkit_sddf_serial` uses an sDDF serial subsystem.
 
-`microkit_sddf_net` uses an sDDF-net subsystem and provides debugging over TCP on port 1234. This method works
-the best for connecting to GDB from tools like VSCode (an example launch.json config for the VSCode Native Debug
-extension is provided in the example directory).
+`microkit_sddf_net` uses an sDDF-net subsystem and provides debugging functionality over TCP.
 
 
 ## Dependencies
