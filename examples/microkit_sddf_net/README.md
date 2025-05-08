@@ -43,7 +43,8 @@ $(QEMU) -machine virt,virtualization=on \
 
 To get the example working on real hardware, it must be attached to a network with
 a DHCP server. The debugger will attempt to obtain an IP address using lwIP and
-print this out.
+print this out. The host machine (running GDB) should be on the same network and
+use this IP address when connecting to the remote.
 
 ## How to use (GDB CLI)
 
@@ -53,6 +54,10 @@ These instructions assume you have correctly set up this configuration file. We 
 you have aarch64-none-elf-gdb, as the system is by default compiled using the aarch64-none-elf
 toolchain. If you used a different compiler, you should use the corresponding version of GDB.
 
+You should first boot the system and wait until you see text that says something like
+"Awaiting GDB input..."
+
+Then, on a different console, you should enter the following commands:
 ```
 cd build
 aarch64-none-elf-gdb
@@ -107,5 +112,6 @@ on this repository.
 The main limitation of this approach is that the VSCode debugger seems to really only be designed
 for a single inferior. There is a multi-target mode, but this seems to assume that the two targets
 are completely independent and communicate on separate connections, which we currently don't support.
-This should be fairly simple to implement, only requiring a unique debugger component per component
-to be debugged. Please reach out if this might be useful to you. 
+This should be fairly simple to implement, requiring a unique debugger component per component
+to be debugged that uses a different IP address/port for communication. Please reach out if this
+might be useful to you. 

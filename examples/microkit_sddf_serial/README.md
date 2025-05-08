@@ -35,9 +35,8 @@ $(QEMU) -machine virt,virtualization=on \
 ```
 
 This configuration enables the use of two serial ports. Debug printing will go to
-stdout, while GDB will use a virtual console, which you can connect GDB to. The virtual
-console that is used is chosen at runtime, and you will see output like the following
-at the beginning of the QEMU log:
+stdout, while GDB will use a virtual console. The virtual console that is used is chosen at
+runtime, and you will see output like the following at the beginning of the QEMU log:
 
 ```
 char device redirected to /dev/ttys004 (label virtcon)
@@ -48,7 +47,7 @@ You can connect to this with GDB as you would any other serial device.
 
 ### Getting it working on real hardware
 
-In all of the hardware examples, GDB and serial printing are sent to the same serial port. This
+In all of the hardware examples, GDB and debug printing use the same serial port. This
 means that GDB's output will be mixed up with the output of other things on the system. GDB is
 quite good at filtering all of this out and ignoring unrelated output from the board, but as a
 user, you will not be able to see any output from the board if GDB is connected to the serial.

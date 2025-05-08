@@ -2,31 +2,33 @@
 
 ## Description
 
-This is an experimental library that aims to provide debugger support for seL4 based systems. It is being developed
+This is an experimental library that aims to provide debugger support for seL4-based systems. It is being developed
 primarily for use with the seL4 microkit but has been implemented as a library that can be used on other
-seL4-based systems. It has been tested most on the odroidc2 platform but has also been used on odroidc4 and
-qemu-arm-virt, and should work with any other aarch64 platform.
+seL4-based systems. It has been used most on the `odroidc2` and `qemu_virt_aarch64` boards, but
+should work with any aarch64 platform.
 
-The library is generally used in combination with a *debugger* component, which has holds thread control block
-(TCB) and VSpace capabilities of the threads which are to be debugged. It is also expected to be the
-fault handler for these threads. The main responsibilities of the debugger component are to initialize the
-state in libGDB by registering inferiors, handle communication between the host machine (running GDB) and
-libGDB, and pass along faults to the library.
+This library is designed to be used in combination with a *debugger* component. This holds thread
+control block (TCB) and VSpace capabilities of the threads which are to be debugged and is expected
+to be the fault handler for these threads. The main responsibilities of the debuger component are to
+initialize system state in libGDB, handle communication between the host machine (running GDB) and
+libGDB on the target machine, and pass faults to libGDB. 
 
 This repository contains three examples - `microkit_sddf_serial`, `microkit_sddf_net`, `microkit_integrated_serial`.
 
 These examples show different ways that a debugger can be implemented.
 
-`microkit_integrated_serial` uses an internal polling UART driver for IO.
+`microkit_integrated_serial` uses an internal polling UART driver for IO. This approach might be
+used for extremely minimal systems.
 
-`microkit_sddf_serial` uses an sDDF serial subsystem.
+`microkit_sddf_serial` uses an [sDDF](https://github.com/au-ts/sddf)-serial subsystem. This approach
+might be used if you don't have access to networking.
 
-`microkit_sddf_net` uses an sDDF-net subsystem and provides debugging functionality over TCP.
-
+`microkit_sddf_net` uses an sDDF-net subsystem and provides debugging functionality over TCP. This
+is probably the most common way that libGDB might be used, as it is the most flexible configuration.
 
 ## Dependencies
 
-This library depends on seL4 and microkit changes that have not yet been upstreamed. As such, a custom version of the
+This library depends on seL4 and microkit changes that have not been upstreamed. As such, a custom version of the
 microkit will have to be built using the following sources.
 
 microkit: [https://github.com/alwin-joshy/microkit/tree/gdb_2025](https://github.com/alwin-joshy/microkit/tree/gdb_2025)
