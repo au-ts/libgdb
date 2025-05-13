@@ -5,7 +5,6 @@
 
 #include <microkit.h>
 
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -82,6 +81,71 @@ bool tcp_initialized = false;
 static bool debugger_initialized = false;
 
 #define NUM_DEBUGEES 2
+
+// Define table data regions for our child
+microkit_uint64_t table_metadata[64];
+microkit_uint64_t table_data[0x800 * (NUM_DEBUGEES + 100)];
+
+microkit_uint64_t walk_table(microkit_uint64_t *start, uintptr_t addr, int lvl)
+{
+    // Get the 9 bit index for this level.
+    uintptr_t index = 0;
+    if (lvl == 1) {
+        // Index into the PUD
+        index = (addr & ((uintptr_t)0x1ff << 30)) >> 30;
+    } else if (lvl == 2) {
+        // Index into the PD
+        index = (addr & ((uintptr_t)0x1ff << 21)) >> 21;
+    } else if (lvl == 3) {
+        // Index into the PT
+        index = (addr & ((uintptr_t)0x1ff << 12)) >> 12;
+    }
+    if (lvl == 3) {
+       return start[index];
+    } else {
+        walk_table(&table_data[start[index]/8], addr, lvl + 1);
+    }
+}
+
+seL4_Word get_page(uint8_t child_id, uintptr_t addr) {
+    microkit_uint64_t page = walk_table(&table_data[table_metadata[0]/8], addr, 0);
+    return page;
+}
+
+uint32_t read_word(uint16_t client, uintptr_t addr, seL4_Word *val) {
+    seL4_Word page = get_page(0, addr);
+    if (page == 0 || page == 0xffffffffffffffff) {
+        return 1;
+    }
+
+    int err = seL4_ARM_Page_Map(page, VSPACE_CAP, 0x900000, seL4_AllRights, seL4_ARM_Default_VMAttributes);
+
+    if (err) {
+        microkit_dbg_puts("We got an error when mapping page in read_word()");
+    }
+
+    uint64_t *ptr_to_page = (uint64_t *) (0x900000 + (addr & 0xfff));
+    *val = *ptr_to_page;
+    return 0;
+}
+
+uint32_t write_word(uint16_t client, uintptr_t addr, seL4_Word val) {
+    microkit_dbg_puts("Writing word\n");
+    seL4_Word page = get_page(0, addr);
+    if (page == 0 || page == 0xffffffffffffffff) {
+        return 1;
+    }
+    int err = seL4_ARM_Page_Map(page, VSPACE_CAP, 0x900000, seL4_AllRights, seL4_ARM_Default_VMAttributes);
+
+    if (err) {
+        microkit_dbg_puts("We got an error when mapping page in write_word()");
+    }
+
+    uint64_t *ptr_to_page = (uint64_t *) (0x900000 + (addr & 0xfff));
+    *ptr_to_page = val;
+    return 0;
+}
+
 
 void _putchar(char character) {
     microkit_dbg_putc(character);
