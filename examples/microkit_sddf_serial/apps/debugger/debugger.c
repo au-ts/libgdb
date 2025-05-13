@@ -15,26 +15,6 @@
 #include <sddf/util/printf.h>
 #include <sddf/serial/config.h>
 
-#define CHILD_PDS 2
-
-static char hexchar(unsigned int v)
-{
-    return v < 10 ? '0' + v : ('a' - 10) + v;
-}
-
-void puthex64(uint64_t val)
-{
-    char buffer[16 + 3];
-    buffer[0] = '0';
-    buffer[1] = 'x';
-    buffer[16 + 3 - 1] = 0;
-    for (unsigned i = 16 + 1; i > 1; i--) {
-        buffer[i] = hexchar(val & 0xf);
-        val >>= 4;
-    }
-    microkit_dbg_puts(buffer);
-}
-
 __attribute__((__section__(".serial_client_config"))) serial_client_config_t config;
 
 typedef enum event_state {
