@@ -40,6 +40,7 @@ typedef struct hw_breakpoint {
 typedef struct sw_breakpoint {
     uint64_t addr;
     uint64_t orig_word;
+    bool set;
 } sw_break_t;
 
 struct inferior;
