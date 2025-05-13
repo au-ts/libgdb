@@ -119,6 +119,11 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
 
     debugger_lib_sddf_lwip = Sddf.Lwip(sdf, net_system, debugger)
 
+    mr = MemoryRegion("mr1", 0x1000)
+    sdf.add_mr(mr)
+    map = Map(mr, 0x600000, "rw")
+    debugger.add_map(map)
+
     ping = ProtectionDomain("ping", "ping.elf", priority=1)
     pong = ProtectionDomain("pong", "pong.elf", priority=1)
 

@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <microkit.h>
 #include <sddf/util/util.h>
 #include <sddf/util/string.h>
@@ -24,6 +25,7 @@
 #include "lwip/pbuf.h"
 #include <libco.h>
 #include <gdb.h>
+#include <util.h>
 
 #include "tcp.h"
 #include "char_queue.h"
@@ -38,6 +40,8 @@ __attribute__((__section__(".net_client_config"))) net_client_config_t net_confi
 
 __attribute__((__section__(".lib_sddf_lwip_config"))) lib_sddf_lwip_config_t lib_sddf_lwip_config;
 
+
+int setup_tcp_socket(void);
 
 typedef enum event_state {
     eventState_none = 0,
