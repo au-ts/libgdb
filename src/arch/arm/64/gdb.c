@@ -293,6 +293,7 @@ bool enable_single_step(gdb_thread_t *thread) {
     //     return false;
     // }
 
+    thread->ss_enabled = true;
     seL4_TCB_ConfigureSingleStepping(thread->tcb, 0, 1);
     return true;
 }
