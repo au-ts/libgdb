@@ -10,6 +10,8 @@ assert version('sdfgen').split(".")[1] == "24", "Unexpected sdfgen version"
 
 ProtectionDomain = SystemDescription.ProtectionDomain
 Channel = SystemDescription.Channel
+MemoryRegion = SystemDescription.MemoryRegion
+Map = SystemDescription.Map
 
 @dataclass
 class Board:
@@ -44,6 +46,11 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
     serial_virt_tx = ProtectionDomain("serial_virt_tx", "serial_virt_tx.elf", priority=99)
     serial_virt_rx = ProtectionDomain("serial_virt_rx", "serial_virt_rx.elf", priority=99)
     debugger = ProtectionDomain("debugger", "debugger.elf", priority=97)
+
+    mr = MemoryRegion("mr1", 0x1000)
+    sdf.add_mr(mr)
+    map = Map(mr, 0x600000, "rw")
+    debugger.add_map(map)
 
     ping = ProtectionDomain("ping", "ping.elf", priority=96)
     pong = ProtectionDomain("pong", "pong.elf", priority=96)
