@@ -358,12 +358,16 @@ void notified(microkit_channel ch) {
     if (ch == net_config.rx.id) {
         sddf_lwip_process_rx();
         if (debugger_initialized) {
+            if (state == eventState_waitingForInputFault) {
+                state = eventState_none;
+                co_switch(t_fault);
+            }
+
+            /* This is not an else if because we want to switch to the event loop after
+               handling the fault message. We could probably do this unconditionally?  */
             if (state == eventState_waitingForInputEventLoop) {
                 state = eventState_none;
                 co_switch(t_main);
-            } else if (state == eventState_waitingForInputFault) {
-                state = eventState_none;
-                co_switch(t_fault);
             }
         }
     } else if (ch == net_config.tx.id) {

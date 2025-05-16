@@ -249,11 +249,16 @@ seL4_Bool fault(microkit_child ch, microkit_msginfo msginfo, microkit_msginfo *r
 }
 
 void notified(microkit_channel ch) {
+    if (state == eventState_waitingForInputFault) {
+        state = eventState_none;
+        co_switch(t_fault);
+    }
+
+
+    /* This is not an else if because we want to switch to the event loop after
+       handling the fault message. We could probably do this unconditionally?  */
     if (state == eventState_waitingForInputEventLoop) {
         state = eventState_none;
         co_switch(t_main);
-    } else if (state == eventState_waitingForInputFault) {
-        state = eventState_none;
-        co_switch(t_fault);
     }
 }
