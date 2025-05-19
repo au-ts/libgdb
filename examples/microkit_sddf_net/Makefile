@@ -56,6 +56,7 @@ export OBJCOPY := $(TOOLCHAIN)-objcopy
 export MICROKIT_TOOL ?= $(MICROKIT_SDK)/bin/microkit
 export SDDF=$(abspath ../../sddf)
 export LIBGDB_DIR=$(abspath ../../)
+export LIBVSPACE_DIR=$(abspath ../../libvspace)
 export DEBUGGER_INCLUDE:=$(abspath .)/apps/debugger/include
 
 IMAGE_FILE := $(BUILD_DIR)/loader.img

@@ -132,5 +132,5 @@ DebuggerError gdb_handle_fault(uint64_t inferior_id, uint64_t thread_id, seL4_Wo
 bool gdb_handle_packet(char *input, char *output, bool *detached);
 
 /* VSpace functions to be implemented by the user. */
-extern uint32_t read_word(uint16_t client, uintptr_t addr, seL4_Word *val);
-extern uint32_t write_word(uint16_t client, uintptr_t addr, seL4_Word val);
+extern uint32_t read_word(uint16_t client, uintptr_t addr, seL4_Word *val, seL4_Word map_addr);
+extern uint32_t write_word(uint16_t client, uintptr_t addr, seL4_Word val, seL4_Word map_addr);
