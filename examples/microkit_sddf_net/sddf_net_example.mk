@@ -57,7 +57,7 @@ CFLAGS := -mcpu=$(CPU) \
 	  -MP
 
 LDFLAGS := -L$(BOARD_DIR)/lib -L${LIBC}
-LIBS := --start-group -lmicrokit -Tmicrokit.ld -lc libsddf_util_debug.a --end-group
+LIBS := --start-group -lmicrokit -Tmicrokit.ld -lc libsddf_util_debug.a libvspace.a --end-group
 
 CHECK_FLAGS_BOARD_MD5 := .board_cflags-$(shell echo -- ${CFLAGS} ${BOARD} ${MICROKIT_CONFIG} | shasum | sed 's/ *-//')
 
@@ -88,7 +88,7 @@ all: loader.img
 
 ${DEBUGGER_OBJS}: ${CHECK_FLAGS_BOARD_MD5}
 debugger.elf: $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a
-	$(LD) $(LDFLAGS) $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a $(LIBS) -o $@
+	$(LD) $(LDFLAGS) $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libvsapce.a libgdb.a libco.a $(LIBS) -o $@
 
 # Need to build libsddf_util_debug.a because it's included in LIBS
 # for the unimplemented libc dependencies
@@ -127,6 +127,7 @@ include ${SERIAL_DRIVER}/serial_driver.mk
 include ${SERIAL_COMPONENTS}/serial_components.mk
 include $(LIBGDB_DIR)/libgdb.mk
 include ${SDDF}/libco/libco.mk
+include $(LIBVSPACE_DIR)/libvspace.mk
 
 qemu: $(IMAGE_FILE)
 	$(QEMU) -machine virt,virtualization=on \

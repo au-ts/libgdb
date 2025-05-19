@@ -46,6 +46,7 @@ export MICROKIT_TOOL ?= $(MICROKIT_SDK)/bin/microkit
 export SDDF=$(abspath ../../sddf)
 export DEBUGGER_INCLUDE:=$(abspath .)/include
 export LIBGDB_DIR := $(abspath ../../)
+export LIBVSPACE_DIR=$(abspath ../../libvspace)
 
 IMAGE_FILE := $(BUILD_DIR)/loader.img
 REPORT_FILE := $(BUILD_DIR)/report.txt

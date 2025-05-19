@@ -116,7 +116,7 @@ bool set_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address) {
     tmp.addr = address;
 
     seL4_Word ret;
-    uint32_t err = read_word(inferior->gdb_id, address, &ret);
+    uint32_t err = read_word(inferior->gdb_id, address, &ret, 0x900000);
     if (err) {
         microkit_dbg_puts("We got an error when trying to read address - 1\n");
         return false;
@@ -127,7 +127,7 @@ bool set_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address) {
     /* Overwrite the address with the instruction but preserve everything else */
     ret = (seL4_Word) AARCH64_BREAK_KGDB_DYN_DBG | (0xFFFFFFFF00000000 & ret);
 
-    err = write_word(inferior->gdb_id, address, ret);
+    err = write_word(inferior->gdb_id, address, ret, 0x900000);
     if (err) {
         microkit_dbg_puts("We got an error when trying to write to address - 2\n");
         return false;
@@ -144,14 +144,14 @@ bool set_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address) {
 
     /* Too many sw breakpoints have been set */
     // @alwin: return value
-    err = write_word(inferior->gdb_id, address, tmp.orig_word);
+    err = write_word(inferior->gdb_id, address, tmp.orig_word, 0x900000);
     return false;
 }
 
 bool unset_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address) {
     for (int i = 0; i < MAX_SW_BREAKS; i++) {
         if (inferior->software_breakpoints[i].addr == address && inferior->software_breakpoints[i].set) {
-            int err = write_word(inferior->gdb_id, address, inferior->software_breakpoints[i].orig_word);
+            int err = write_word(inferior->gdb_id, address, inferior->software_breakpoints[i].orig_word, 0x900000);
             if (err) {
                 microkit_dbg_puts("We got an error when trying to write to address - 9\n");
                 return false;
@@ -299,7 +299,6 @@ bool enable_single_step(gdb_thread_t *thread) {
     // if (inferior->ss_enabled) {
     //     return false;
     // }
-
     thread->ss_enabled = true;
     seL4_TCB_ConfigureSingleStepping(thread->tcb, 0, 1);
     return true;
@@ -324,7 +323,7 @@ char *inf_mem2hex(gdb_thread_t *thread, seL4_Word mem, char *buf, int size, seL4
     for (i = 0; i < size; i++) {
         if (i % sizeof(seL4_Word) == 0) {
             seL4_Word ret = 0;
-            uint32_t err = read_word(thread->inferior->gdb_id, mem, &ret);
+            uint32_t err = read_word(thread->inferior->gdb_id, mem, &ret, 0x900000);
             if (err) {
                 *error = err;
                 return NULL;
@@ -357,7 +356,7 @@ seL4_Word inf_hex2mem(gdb_thread_t *thread, char *buf, seL4_Word mem, int size)
         if (i % sizeof(seL4_Word) == 0) {
 
             seL4_Word ret;
-            uint32_t err = read_word(thread->inferior->gdb_id, mem, &ret);
+            uint32_t err = read_word(thread->inferior->gdb_id, mem, &ret, 0x900000);
             if (err) {
                 return (mem + i);
             }
@@ -370,7 +369,7 @@ seL4_Word inf_hex2mem(gdb_thread_t *thread, char *buf, seL4_Word mem, int size)
         *(((char *) &curr_word) + (i % sizeof(seL4_Word))) = c;
 
         if (i % sizeof(seL4_Word) == sizeof(seL4_Word) - 1 || i == size - 1) {
-            int err = write_word(thread->inferior->gdb_id, mem + (i/sizeof(seL4_Word)), curr_word);
+            int err = write_word(thread->inferior->gdb_id, mem + (i/sizeof(seL4_Word)), curr_word, 0x900000);
             if (err) {
                 return (mem + i);
             }
