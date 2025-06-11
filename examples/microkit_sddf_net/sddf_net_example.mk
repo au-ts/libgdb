@@ -87,12 +87,12 @@ DEPS := $(DEBUGGER_OBJS:.o=.d)
 all: loader.img
 
 ${DEBUGGER_OBJS}: ${CHECK_FLAGS_BOARD_MD5}
-debugger.elf: $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a
-	$(LD) $(LDFLAGS) $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libvsapce.a libgdb.a libco.a $(LIBS) -o $@
+debugger.elf: $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a libvspace.a
+	$(LD) $(LDFLAGS) $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libvspace.a libgdb.a libco.a $(LIBS) -o $@
 
 # Need to build libsddf_util_debug.a because it's included in LIBS
 # for the unimplemented libc dependencies
-${IMAGES}: libsddf_util_debug.a
+${IMAGES}: libsddf_util_debug.a libvspace.a
 
 $(DTB): $(DTS)
 	dtc -q -I dts -O dtb $(DTS) > $(DTB)
