@@ -108,7 +108,7 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
     net_virt_rx = ProtectionDomain("net_virt_rx", "network_virt_rx.elf", priority=99)
     net_system = Sddf.Net(sdf, ethernet_node, ethernet_driver, net_virt_tx, net_virt_rx)
 
-    debugger = ProtectionDomain("debugger", "debugger.elf", priority=97, budget=20000, stack_size=0x20000)
+    debugger = ProtectionDomain("debugger", "debugger.elf", priority=97, budget=20000, stack_size=0x20000, child_pts=True)
     debugger_net_copier = ProtectionDomain(
         "debugger_net_copier", "network_copy.elf", priority=98, budget=20000
     )
