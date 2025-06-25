@@ -24,9 +24,15 @@
 #include <libco.h>
 #include <gdb.h>
 #include <util.h>
-
+#include <vspace.h>
 #include "tcp.h"
 #include "char_queue.h"
+
+// The user provides the following mapping regions.
+// The small mapping region must be of page_size 0x1000
+// THe large mapping region must be of page_size 0x200000
+uintptr_t small_mapping_mr;
+uintptr_t large_mapping_mr;
 
 serial_queue_handle_t serial_tx_queue_handle;
 
@@ -81,6 +87,16 @@ static int socket_fd;
 static int socket_fd;
 bool tcp_initialized = false;
 static bool debugger_initialized = false;
+
+uint32_t gdb_read_word(uint16_t client, uintptr_t addr, seL4_Word *val)
+{
+    libvspace_read_word(client, addr, val);
+}
+
+uint32_t gdb_write_word(uint16_t client, uintptr_t addr, seL4_Word val)
+{
+    libvspace_write_word(client, addr, val);
+}
 
 void _putchar(char character) {
     microkit_dbg_putc(character);
@@ -324,6 +340,10 @@ void init(void)
     setup_tcp_socket();
 
     sddf_lwip_maybe_notify();
+
+    // Setup the mapping regions for libvspace to use.
+    libvspace_set_small_mapping_region(small_mapping_mr);
+    libvspace_set_large_mapping_region(large_mapping_mr);
 }
 
 void fault_message() {

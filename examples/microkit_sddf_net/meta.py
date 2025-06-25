@@ -119,13 +119,23 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
 
     debugger_lib_sddf_lwip = Sddf.Lwip(sdf, net_system, debugger)
 
-    mr = MemoryRegion("mr1", 0x1000)
-    sdf.add_mr(mr)
-    map = Map(mr, 0x900000, "rw")
-    debugger.add_map(map)
+    small_mapping_region = MemoryRegion("small_region", 0x1000)
+    sdf.add_mr(small_mapping_region)
+    small_map = Map(small_mapping_region, 0x900000, "rw", setvar_vaddr="small_mapping_mr")
+    debugger.add_map(small_map)
+
+    large_mapping_region = MemoryRegion("large_region", 0x200000, page_size=MemoryRegion.PageSize.LargePage)
+    sdf.add_mr(large_mapping_region)
+    large_map = Map(large_mapping_region, 0xa00000, "rw", setvar_vaddr="large_mapping_mr")
+    debugger.add_map(large_map)
 
     ping = ProtectionDomain("ping", "ping.elf", priority=1)
     pong = ProtectionDomain("pong", "pong.elf", priority=1)
+
+    ping_large_page = MemoryRegion("ping_large_page", 0x200000, page_size=MemoryRegion.PageSize.LargePage)
+    sdf.add_mr(ping_large_page)
+    ping_large_page_map = Map(ping_large_page, 0x800000, "rw", setvar_vaddr="mr")
+    ping.add_map(ping_large_page_map)
 
     debug_pds = [
         ping,

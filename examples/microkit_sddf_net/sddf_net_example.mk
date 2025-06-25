@@ -53,11 +53,12 @@ CFLAGS := -mcpu=$(CPU) \
 	  -I$(SDDF)/libco \
 	  -I$(LIBGDB_DIR)/include \
 	  -I$(LIBGDB_DIR)/arch_include \
+	  -I$(LIBVSPACE_DIR) \
 	  -MD \
 	  -MP
 
 LDFLAGS := -L$(BOARD_DIR)/lib -L${LIBC}
-LIBS := --start-group -lmicrokit -Tmicrokit.ld -lc libsddf_util_debug.a libvspace.a --end-group
+LIBS := --start-group -lmicrokit -Tmicrokit.ld -lc libsddf_util_debug.a --end-group
 
 CHECK_FLAGS_BOARD_MD5 := .board_cflags-$(shell echo -- ${CFLAGS} ${BOARD} ${MICROKIT_CONFIG} | shasum | sed 's/ *-//')
 
@@ -88,7 +89,7 @@ all: loader.img
 
 ${DEBUGGER_OBJS}: ${CHECK_FLAGS_BOARD_MD5}
 debugger.elf: $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a libvspace.a
-	$(LD) $(LDFLAGS) $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libvspace.a libgdb.a libco.a $(LIBS) -o $@
+	$(LD) $(LDFLAGS) $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libvspace.a libco.a $(LIBS) -o $@
 
 # Need to build libsddf_util_debug.a because it's included in LIBS
 # for the unimplemented libc dependencies
