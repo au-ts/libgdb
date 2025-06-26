@@ -40,6 +40,7 @@ typedef struct hw_breakpoint {
 typedef struct sw_breakpoint {
     uint64_t addr;
     uint64_t orig_word;
+    bool set;
 } sw_break_t;
 
 struct inferior;
@@ -130,3 +131,6 @@ DebuggerError gdb_handle_fault(uint64_t inferior_id, uint64_t thread_id, seL4_Wo
                                seL4_Word *reply_mr, char *output, bool* have_reply);
 bool gdb_handle_packet(char *input, char *output, bool *detached);
 
+/* VSpace functions to be implemented by the user. */
+extern uint32_t gdb_read_word(uint16_t client, uintptr_t addr, seL4_Word *val);
+extern uint32_t gdb_write_word(uint16_t client, uintptr_t addr, seL4_Word val);

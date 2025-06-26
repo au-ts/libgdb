@@ -13,7 +13,6 @@
 #include <assert.h>
 #endif /* MICROKIT */
 
-
 /* Software breakpoint related stuff */
 #define AARCH64_BREAK_MON   0xd4200000
 #define KGDB_DYN_DBG_BRK_IMM        0x400
@@ -116,42 +115,50 @@ bool set_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address) {
     sw_break_t tmp;
     tmp.addr = address;
 
-    seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(inferior->vspace, address);
-    if (ret.error) {
+    seL4_Word ret;
+    uint32_t err = gdb_read_word(inferior->id, address, &ret);
+    if (err) {
+        microkit_dbg_puts("We got an error when trying to read address - 1\n");
         return false;
     }
-    tmp.orig_word = ret.value;
+
+    tmp.orig_word = ret;
 
     /* Overwrite the address with the instruction but preserve everything else */
-    ret.value = (seL4_Word) AARCH64_BREAK_KGDB_DYN_DBG | (0xFFFFFFFF00000000 & ret.value);
+    ret = (seL4_Word) AARCH64_BREAK_KGDB_DYN_DBG | (0xFFFFFFFF00000000 & ret);
 
-    if (seL4_ARM_VSpace_Write_Word(inferior->vspace, address, ret.value)) {
+    err = gdb_write_word(inferior->id, address, ret);
+    if (err) {
+        microkit_dbg_puts("We got an error when trying to write to address - 2\n");
         return false;
     }
 
     int i = 0;
     for (; i < MAX_SW_BREAKS; i++) {
-        if (inferior->software_breakpoints[i].addr == 0) {
+        if (!inferior->software_breakpoints[i].set) {
             inferior->software_breakpoints[i] = tmp;
+            inferior->software_breakpoints[i].set = true;
             return true;
         }
     }
 
     /* Too many sw breakpoints have been set */
     // @alwin: return value
-    seL4_ARM_VSpace_Write_Word(inferior->vspace, address, tmp.orig_word);
+    err = gdb_write_word(inferior->id, address, tmp.orig_word);
     return false;
 }
 
 bool unset_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address) {
     for (int i = 0; i < MAX_SW_BREAKS; i++) {
-        if (inferior->software_breakpoints[i].addr == address) {
-            int err = seL4_ARM_VSpace_Write_Word(inferior->vspace,
-                                                 address,
-                                                 inferior->software_breakpoints[i].orig_word);
-            if (!err) {
+        if (inferior->software_breakpoints[i].addr == address && inferior->software_breakpoints[i].set) {
+            int err = gdb_write_word(inferior->id, address, inferior->software_breakpoints[i].orig_word);
+            if (err) {
+                microkit_dbg_puts("We got an error when trying to write to address - 9\n");
+                return false;
+            } else if (!err) {
                 inferior->software_breakpoints[i].addr = 0;
             }
+            inferior->software_breakpoints[i].set = false;
 
             /* If err == 0, we want to return true (success), else return false (failiure) */
             return !err;
@@ -292,7 +299,6 @@ bool enable_single_step(gdb_thread_t *thread) {
     // if (inferior->ss_enabled) {
     //     return false;
     // }
-
     thread->ss_enabled = true;
     seL4_TCB_ConfigureSingleStepping(thread->tcb, 0, 1);
     return true;
@@ -308,7 +314,7 @@ bool disable_single_step(gdb_thread_t *thread) {
     return true;
 }
 
- char *inf_mem2hex(gdb_thread_t *thread, seL4_Word mem, char *buf, int size, seL4_Word *error)
+char *inf_mem2hex(gdb_thread_t *thread, seL4_Word mem, char *buf, int size, seL4_Word *error)
 {
     int i;
     unsigned char c;
@@ -316,13 +322,14 @@ bool disable_single_step(gdb_thread_t *thread) {
     seL4_Word curr_word = 0;
     for (i = 0; i < size; i++) {
         if (i % sizeof(seL4_Word) == 0) {
-            seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(thread->inferior->vspace, mem);
-            if (ret.error) {
-                *error = ret.error;
+            seL4_Word ret = 0;
+            uint32_t err = gdb_read_word(thread->inferior->id, mem, &ret);
+            if (err) {
+                *error = err;
                 return NULL;
             }
 
-            curr_word = ret.value;
+            curr_word = ret;
             mem += sizeof(seL4_Word);
         }
 
@@ -347,12 +354,14 @@ seL4_Word inf_hex2mem(gdb_thread_t *thread, char *buf, seL4_Word mem, int size)
     seL4_Word curr_word = 0;
     for (i = 0; i < size; i++, mem++) {
         if (i % sizeof(seL4_Word) == 0) {
-            seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(thread->inferior->vspace, mem);
-            if (ret.error) {
+
+            seL4_Word ret;
+            uint32_t err = gdb_read_word(thread->inferior->id, mem, &ret);
+            if (err) {
                 return (mem + i);
             }
 
-            curr_word = ret.value;
+            curr_word = ret;
         }
 
         c = hexchar_to_int(*buf++) << 4;
@@ -360,10 +369,11 @@ seL4_Word inf_hex2mem(gdb_thread_t *thread, char *buf, seL4_Word mem, int size)
         *(((char *) &curr_word) + (i % sizeof(seL4_Word))) = c;
 
         if (i % sizeof(seL4_Word) == sizeof(seL4_Word) - 1 || i == size - 1) {
-            int err = seL4_ARM_VSpace_Write_Word(thread->inferior->vspace, mem + (i/sizeof(seL4_Word)), curr_word);
+            int err = gdb_write_word(thread->inferior->id, mem + (i/sizeof(seL4_Word)), curr_word);
             if (err) {
                 return (mem + i);
             }
+
             mem += sizeof(seL4_Word);
         }
     }
