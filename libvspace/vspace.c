@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "vspace.h"
 #include <sddf/util/printf.h>
+#include <sddf/util/util.h>
 
 #define AARCH64_SMALL_PAGE_SIZE 0x1000
 #define AARCH64_LARGE_PAGE_SIZE 0x200000
@@ -50,7 +51,7 @@ uint64_t walk_table(uint64_t *start, uintptr_t addr, int lvl, uint64_t *page_siz
         }
     }
 
-    walk_table((uint64_t *) (table_metadata.table_data_base + start[index]), addr, lvl + 1, page_size);
+    return walk_table((uint64_t *) (table_metadata.table_data_base + start[index]), addr, lvl + 1, page_size);
 }
 
 seL4_Word get_page(uint8_t child_id, uintptr_t addr, uint64_t *page_size)
@@ -80,11 +81,12 @@ uint32_t libvspace_read_word(uint16_t client, uintptr_t addr, seL4_Word *val)
     int err = seL4_ARM_Page_Map(page, VSPACE_CAP, map_addr, seL4_AllRights, seL4_ARM_Default_VMAttributes | seL4_ARM_ExecuteNever);
 
     if (err) {
-        sddf_dprintf("We got an error when mapping page in read_word()");
+        sddf_dprintf("We got an error when mapping page in read_word() at map addr: 0x%lx\n", map_addr);
+        return err;
     }
 
-    uint64_t *ptr_to_page = (uint64_t *) (map_addr + (addr & (page_size - 1)));
-    *val = *ptr_to_page;
+    char *ptr_to_page = (char *) (map_addr + (addr & (page_size - 1)));
+    memcpy((char *) val, ptr_to_page, 8);
     return 0;
 }
 
@@ -109,11 +111,12 @@ uint32_t libvspace_write_word(uint16_t client, uintptr_t addr, seL4_Word val)
     int err = seL4_ARM_Page_Map(page, VSPACE_CAP, map_addr, seL4_AllRights, seL4_ARM_Default_VMAttributes);
 
     if (err) {
-        sddf_dprintf("We got an error when mapping page in write_word()");
+        sddf_dprintf("We got an error when mapping page in write_word() at map addr: 0x%lx\n", map_addr);
+        return err;
     }
 
-    uint64_t *ptr_to_page = (uint64_t *) (map_addr + (addr & (page_size - 1)));
-    *ptr_to_page = val;
+    char *ptr_to_page = (char *) (map_addr + (addr & (page_size - 1)));
+    memcpy(ptr_to_page, (char *) &val, 8);
 
     asm("dmb sy");
     seL4_ARM_VSpace_CleanInvalidate_Data(VSPACE_CAP, map_addr + (addr & (page_size - 1)), map_addr + (addr & (page_size - 1)) + sizeof(uint64_t));
