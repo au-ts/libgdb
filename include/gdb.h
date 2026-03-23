@@ -40,6 +40,7 @@ typedef struct hw_breakpoint {
 typedef struct sw_breakpoint {
     uint64_t addr;
     uint64_t orig_word;
+    bool set;
 } sw_break_t;
 
 struct inferior;
@@ -113,6 +114,7 @@ bool disable_single_step(gdb_thread_t *thread);
 /* Convert registers to a hex string */
 char *regs2hex(seL4_UserContext *regs, char *buf);
 
+char *regs2print(seL4_UserContext *regs, char *buf);
 /* Convert registers to a hex string */
 char *hex2regs(seL4_UserContext *regs, char *buf);
 
@@ -130,3 +132,8 @@ DebuggerError gdb_handle_fault(uint64_t inferior_id, uint64_t thread_id, seL4_Wo
                                seL4_Word *reply_mr, char *output, bool* have_reply);
 bool gdb_handle_packet(char *input, char *output, bool *detached);
 
+/* VSpace functions to be implemented by the user. */
+extern uint32_t gdb_read_word(uint16_t client, uintptr_t addr, char *val);
+extern uint32_t gdb_read_bytes(uint16_t client, uintptr_t start_addr, char *buff, uint64_t nbytes);
+extern uint32_t gdb_write_word(uint16_t client, uintptr_t addr, seL4_Word val);
+extern uint32_t gdb_write_bytes(uint16_t client, uintptr_t start_addr, char *buff, uint64_t nbytes);

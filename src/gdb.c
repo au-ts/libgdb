@@ -259,10 +259,10 @@ DebuggerError gdb_register_inferior(uint64_t inferior_id, seL4_CPtr vspace) {
         inferior->gdb_id = ++curr_inferior_idx;
         inferior->vspace = vspace;
         inferior->curr_thread_idx = 0;
-        memset(inferior->threads, 0, MAX_THREADS * sizeof(gdb_thread_t));
-        memset(inferior->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
-        memset(inferior->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
-        memset(inferior->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
+        memset(&inferior->threads, 0, MAX_THREADS * sizeof(gdb_thread_t));
+        memset(&inferior->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
+        memset(&inferior->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
+        memset(&inferior->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
         return DebuggerError_NoError;
     }
 
@@ -611,9 +611,9 @@ static void handle_detach(char *ptr, char *output) {
                                       inferior->hardware_watchpoints[i].type,
                                       inferior->hardware_watchpoints[i].size);
         }
-        memset(inferior->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
-        memset(inferior->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
-        memset(inferior->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
+        memset(&inferior->software_breakpoints, 0, MAX_SW_BREAKS * sizeof(sw_break_t));
+        memset(&inferior->hardware_breakpoints, 0, seL4_NumExclusiveBreakpoints * sizeof(hw_break_t));
+        memset(&inferior->hardware_watchpoints, 0, seL4_NumExclusiveWatchpoints * sizeof(hw_watch_t));
 
         for (int j = 0; j < MAX_THREADS; j++) {
             if (!inferior->threads[j].enabled) continue;

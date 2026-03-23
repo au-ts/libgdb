@@ -53,6 +53,7 @@ CFLAGS := -mcpu=$(CPU) \
 	  -I$(SDDF)/libco \
 	  -I$(LIBGDB_DIR)/include \
 	  -I$(LIBGDB_DIR)/arch_include \
+	  -I$(LIBVSPACE_DIR) \
 	  -MD \
 	  -MP
 
@@ -87,12 +88,12 @@ DEPS := $(DEBUGGER_OBJS:.o=.d)
 all: loader.img
 
 ${DEBUGGER_OBJS}: ${CHECK_FLAGS_BOARD_MD5}
-debugger.elf: $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a
-	$(LD) $(LDFLAGS) $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a $(LIBS) -o $@
+debugger.elf: $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libco.a libvspace.a
+	$(LD) $(LDFLAGS) $(DEBUGGER_OBJS) libsddf_util.a lib_sddf_lwip.a libgdb.a libvspace.a libco.a $(LIBS) -o $@
 
 # Need to build libsddf_util_debug.a because it's included in LIBS
 # for the unimplemented libc dependencies
-${IMAGES}: libsddf_util_debug.a
+${IMAGES}: libsddf_util_debug.a libvspace.a
 
 $(DTB): $(DTS)
 	dtc -q -I dts -O dtb $(DTS) > $(DTB)
@@ -127,6 +128,7 @@ include ${SERIAL_DRIVER}/serial_driver.mk
 include ${SERIAL_COMPONENTS}/serial_components.mk
 include $(LIBGDB_DIR)/libgdb.mk
 include ${SDDF}/libco/libco.mk
+include $(LIBVSPACE_DIR)/libvspace.mk
 
 qemu: $(IMAGE_FILE)
 	$(QEMU) -machine virt,virtualization=on \

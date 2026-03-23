@@ -25,6 +25,7 @@ typedef enum event_state {
 
 cothread_t t_event, t_main, t_fault;
 
+// TODO - DO NOT DEFINE THIS IN MULTIPLE PLACES
 #define NUM_DEBUGEES 2
 
 #define STACK_SIZE 4096
@@ -49,7 +50,6 @@ serial_queue_handle_t tx_queue_handle;
 /* The current event state and phase */
 event_state_t state = eventState_none;
 static bool detached = false;
-
 
 void _putchar(char character) {
     microkit_dbg_putc(character);

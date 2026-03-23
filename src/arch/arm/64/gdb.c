@@ -9,16 +9,60 @@
 #include <sel4/constants.h>
 #include <gdb.h>
 #include <stddef.h>
+#include <printf.h>
+
 #ifndef MICROKIT
 #include <assert.h>
 #endif /* MICROKIT */
-
 
 /* Software breakpoint related stuff */
 #define AARCH64_BREAK_MON   0xd4200000
 #define KGDB_DYN_DBG_BRK_IMM        0x400
 #define AARCH64_BREAK_KGDB_DYN_DBG  \
     (AARCH64_BREAK_MON | (KGDB_DYN_DBG_BRK_IMM << 5))
+
+char *regs2print(seL4_UserContext *regs, char *buf)
+{
+    /* First we handle the 64 bit general purpose registers*/
+    printf("Register[x0] value: 0x%lx: \n", regs->x0);
+    printf("Register[x1] value: 0x%lx: \n", regs->x1);
+    printf("Register[x2] value: 0x%lx: \n", regs->x2);
+    printf("Register[x3] value: 0x%lx: \n", regs->x3);
+    printf("Register[x4] value: 0x%lx: \n", regs->x4);
+    printf("Register[x5] value: 0x%lx: \n", regs->x5);
+    printf("Register[x6] value: 0x%lx: \n", regs->x6);
+    printf("Register[x7] value: 0x%lx: \n", regs->x7);
+    printf("Register[x8] value: 0x%lx: \n", regs->x8);
+    printf("Register[x9] value: 0x%lx: \n", regs->x9);
+    printf("Register[x10] value: 0x%lx: \n", regs->x10);
+    printf("Register[x11] value: 0x%lx: \n", regs->x11);
+    printf("Register[x12] value: 0x%lx: \n", regs->x12);
+    printf("Register[x13] value: 0x%lx: \n", regs->x13);
+    printf("Register[x14] value: 0x%lx: \n", regs->x14);
+    printf("Register[x15] value: 0x%lx: \n", regs->x15);
+    printf("Register[x16] value: 0x%lx: \n", regs->x16);
+    printf("Register[x17] value: 0x%lx: \n", regs->x17);
+    printf("Register[x18] value: 0x%lx: \n", regs->x18);
+    printf("Register[x19] value: 0x%lx: \n", regs->x19);
+    printf("Register[x20] value: 0x%lx: \n", regs->x20);
+    printf("Register[x21] value: 0x%lx: \n", regs->x21);
+    printf("Register[x22] value: 0x%lx: \n", regs->x22);
+    printf("Register[x23] value: 0x%lx: \n", regs->x23);
+    printf("Register[x24] value: 0x%lx: \n", regs->x24);
+    printf("Register[x25] value: 0x%lx: \n", regs->x25);
+    printf("Register[x26] value: 0x%lx: \n", regs->x26);
+    printf("Register[x27] value: 0x%lx: \n", regs->x27);
+    printf("Register[x28] value: 0x%lx: \n", regs->x28);
+    printf("Register[x29] value: 0x%lx: \n", regs->x29);
+    printf("Register[x30] value: 0x%lx: \n", regs->x30);
+
+    /* Now the stack pointer and the instruction pointer */
+    printf("Register[sp] value: 0x%lx: \n", regs->sp);
+    printf("Register[pc] value: 0x%lx: \n", regs->pc);
+
+    /* Finally the cpsr */
+    // return mem2hex((char *) &regs->spsr, buf, sizeof(seL4_Word) / 2);
+}
 
 /* Convert registers to a hex string */
 // @alwin: This is rather unpleasant, but the way the seL4_UserContext struct is formatted is annoying
@@ -115,43 +159,50 @@ char *hex2regs(seL4_UserContext *regs, char *buf)
 bool set_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address) {
     sw_break_t tmp;
     tmp.addr = address;
-
-    seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(inferior->vspace, address);
-    if (ret.error) {
+    seL4_Word ret;
+    uint32_t err = gdb_read_word(inferior->id, address, &ret);
+    if (err) {
+        microkit_dbg_puts("We got an error when trying to read address - 1\n");
         return false;
     }
-    tmp.orig_word = ret.value;
+
+    tmp.orig_word = ret;
 
     /* Overwrite the address with the instruction but preserve everything else */
-    ret.value = (seL4_Word) AARCH64_BREAK_KGDB_DYN_DBG | (0xFFFFFFFF00000000 & ret.value);
+    ret = (seL4_Word) AARCH64_BREAK_KGDB_DYN_DBG | (0xFFFFFFFF00000000 & ret);
 
-    if (seL4_ARM_VSpace_Write_Word(inferior->vspace, address, ret.value)) {
+    err = gdb_write_word(inferior->id, address, ret);
+    if (err) {
+        microkit_dbg_puts("We got an error when trying to write to address - 2\n");
         return false;
     }
 
     int i = 0;
     for (; i < MAX_SW_BREAKS; i++) {
-        if (inferior->software_breakpoints[i].addr == 0) {
+        if (!inferior->software_breakpoints[i].set) {
             inferior->software_breakpoints[i] = tmp;
+            inferior->software_breakpoints[i].set = true;
             return true;
         }
     }
 
     /* Too many sw breakpoints have been set */
     // @alwin: return value
-    seL4_ARM_VSpace_Write_Word(inferior->vspace, address, tmp.orig_word);
+    err = gdb_write_word(inferior->id, address, tmp.orig_word);
     return false;
 }
 
 bool unset_software_breakpoint(gdb_inferior_t *inferior, seL4_Word address) {
     for (int i = 0; i < MAX_SW_BREAKS; i++) {
-        if (inferior->software_breakpoints[i].addr == address) {
-            int err = seL4_ARM_VSpace_Write_Word(inferior->vspace,
-                                                 address,
-                                                 inferior->software_breakpoints[i].orig_word);
-            if (!err) {
+        if (inferior->software_breakpoints[i].addr == address && inferior->software_breakpoints[i].set) {
+            int err = gdb_write_word(inferior->id, address, inferior->software_breakpoints[i].orig_word);
+            if (err) {
+                microkit_dbg_puts("We got an error when trying to write to address - 9\n");
+                return false;
+            } else if (!err) {
                 inferior->software_breakpoints[i].addr = 0;
             }
+            inferior->software_breakpoints[i].set = false;
 
             /* If err == 0, we want to return true (success), else return false (failiure) */
             return !err;
@@ -292,7 +343,6 @@ bool enable_single_step(gdb_thread_t *thread) {
     // if (inferior->ss_enabled) {
     //     return false;
     // }
-
     thread->ss_enabled = true;
     seL4_TCB_ConfigureSingleStepping(thread->tcb, 0, 1);
     return true;
@@ -308,27 +358,24 @@ bool disable_single_step(gdb_thread_t *thread) {
     return true;
 }
 
- char *inf_mem2hex(gdb_thread_t *thread, seL4_Word mem, char *buf, int size, seL4_Word *error)
+char *inf_mem2hex(gdb_thread_t *thread, seL4_Word mem, char *buf, int size, seL4_Word *error)
 {
     int i;
     unsigned char c;
+    char byte_buf[BUFSIZE];
 
-    seL4_Word curr_word = 0;
-    for (i = 0; i < size; i++) {
-        if (i % sizeof(seL4_Word) == 0) {
-            seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(thread->inferior->vspace, mem);
-            if (ret.error) {
-                *error = ret.error;
-                return NULL;
-            }
+    uint32_t err = gdb_read_bytes(thread->inferior->id, mem, byte_buf, size);
+    if (err) {
+        *error = err;
+        return NULL;
+    }
 
-            curr_word = ret.value;
-            mem += sizeof(seL4_Word);
-        }
-
-        c = *(((char *) &curr_word) + (i % sizeof(seL4_Word)));
-        *buf++ = int_to_hexchar(c >> 4);
-        *buf++ = int_to_hexchar(c % 16);
+    for (int i = 0; i < size; i++) {
+        c = byte_buf[i];
+        *buf = int_to_hexchar(c >> 4);
+        buf++;
+        *buf = int_to_hexchar(c % 16);
+        buf++;
     }
 
     *buf = 0;
@@ -342,31 +389,17 @@ bool disable_single_step(gdb_thread_t *thread) {
 seL4_Word inf_hex2mem(gdb_thread_t *thread, char *buf, seL4_Word mem, int size)
 {
     int i;
-    unsigned char c;
+    unsigned char write_buf[BUFSIZE];
 
-    seL4_Word curr_word = 0;
-    for (i = 0; i < size; i++, mem++) {
-        if (i % sizeof(seL4_Word) == 0) {
-            seL4_ARM_VSpace_Read_Word_t ret = seL4_ARM_VSpace_Read_Word(thread->inferior->vspace, mem);
-            if (ret.error) {
-                return (mem + i);
-            }
-
-            curr_word = ret.value;
-        }
-
-        c = hexchar_to_int(*buf++) << 4;
-        c += hexchar_to_int(*buf++);
-        *(((char *) &curr_word) + (i % sizeof(seL4_Word))) = c;
-
-        if (i % sizeof(seL4_Word) == sizeof(seL4_Word) - 1 || i == size - 1) {
-            int err = seL4_ARM_VSpace_Write_Word(thread->inferior->vspace, mem + (i/sizeof(seL4_Word)), curr_word);
-            if (err) {
-                return (mem + i);
-            }
-            mem += sizeof(seL4_Word);
-        }
+    for (int i = 0; i < size; i++) {
+        write_buf[i] = hexchar_to_int(*buf++) << 4;
+        write_buf[i] += hexchar_to_int(*buf++);
     }
 
-    return (mem + i);
+    uint32_t bytes_written = gdb_write_bytes(thread->inferior->id, mem, write_buf, size);
+    if (bytes_written != size) {
+        printf("Could only write %u bytes of %u!\n", bytes_written, size);
+    }
+
+    return bytes_written;
 }

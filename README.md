@@ -31,9 +31,9 @@ is probably the most common way that libGDB might be used, as it is the most fle
 This library depends on seL4 and microkit changes that have not been upstreamed. As such, a custom version of the
 microkit will have to be built using the following sources.
 
-microkit: [https://github.com/alwin-joshy/microkit/tree/gdb_2025](https://github.com/alwin-joshy/microkit/tree/gdb_2025)
+microkit: [https://github.com/au-ts/microkit/tree/child_vspace](https://github.com/au-ts/microkit/tree/child_vspace)
 
-seL4: [https://github.com/alwin-joshy/seL4/tree/gdb_2025](https://github.com/alwin-joshy/seL4/tree/gdb_2025)
+seL4: [https://github.com/au-ts/seL4/tree/libgdb](https://github.com/au-ts/seL4/tree/libgdb)
 
 The examples depend on the `aarch64-none-elf` toolchain for compilation, and libGDB has only been tested with `aarch64-none-elf-gdb`,
 though any GDB that has architecture support for aarch64 should suffice.
