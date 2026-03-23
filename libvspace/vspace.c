@@ -8,8 +8,15 @@
 #define AARCH64_SMALL_PAGE_SIZE 0x1000
 #define AARCH64_LARGE_PAGE_SIZE 0x200000
 
+#define ALIGN_4K(x)     (((uintptr_t)(x) + (uintptr_t)(0xFFF)) & ~(uintptr_t)(0xFFF))
+#define ALIGN_2MB(x)    (((uintptr_t)(x) + (uintptr_t)(0x1FFFFF)) & ~(uintptr_t)(0x1FFFFF))
+#define MIN(i, j) (((i) < (j)) ? (i) : (j))
+#define MAX(i, j) (((i) > (j)) ? (i) : (j))
+
 uint64_t small_mapping_region = 0;
 uint64_t large_mapping_region = 0;
+
+bool libvspace_initialised = false;
 
 typedef struct table_meta_data {
     uint64_t table_data_base;
@@ -61,60 +68,68 @@ seL4_Word get_page(uint8_t child_id, uintptr_t addr, uint64_t *page_size)
 }
 
 uint32_t libvspace_read_bytes(uint16_t client, uintptr_t addr, char *buff, uint64_t nbytes) {
-    uint64_t page_size = 0;
-    seL4_Word page = get_page(client, addr, &page_size);
-    if ((page == 0 || page == 0xffffffffffffffff) || page_size == 0) {
+    if (!libvspace_initialised) {
+        sddf_dprintf("'libvspace_read_bytes': ERROR libvspace not initialised!\n");
         return 1;
     }
+    // These values will be set in the fist iteration of the read loop
+    seL4_Word map_addr = 0;
+    uint64_t page_size = 0;
+    size_t page_aligned_up_curr_addr = 0;
 
-    seL4_Word map_addr;
+    size_t bytes_to_read = nbytes;
+    uintptr_t curr_addr = addr;
+    char *curr_buff_addr = buff;
 
-    if (page_size == AARCH64_LARGE_PAGE_SIZE) {
-        map_addr = large_mapping_region;
-    } else {
-        map_addr = small_mapping_region;
-    }
+    bool mapped_first_page = false;
 
-    int err = seL4_ARM_Page_Map(page, VSPACE_CAP, map_addr, seL4_AllRights, seL4_ARM_Default_VMAttributes | seL4_ARM_ExecuteNever);
-
-    if (err) {
-        sddf_dprintf("We got an error when mapping page in read_word() at map addr: 0x%lx\n", map_addr);
-        return err;
-    }
-
-    // We are going to copy nytes into the buff iteratively
-    char *curr_addr = (char *) (map_addr + (addr & (page_size - 1)));
-
-    for (int i = 0; i < nbytes; i++) {
-        // Don't want to do this on the first page?
-        if ((uintptr_t) curr_addr % page_size == 0) {
-            // get the next page
-            page = get_page(client, (uintptr_t)addr, &page_size);
+    while (bytes_to_read != 0) {
+        if (!mapped_first_page || (uintptr_t) curr_addr % page_size == 0) {
+            seL4_Word page = get_page(client, (uintptr_t)addr, &page_size);
             if ((page == 0 || page == 0xffffffffffffffff) || page_size == 0) {
                 sddf_dprintf("Failed to read byte at addr: 0x%p after remap\n", addr);
                 return 1;
             }
-
-            err = seL4_ARM_Page_Map(page, VSPACE_CAP, map_addr, seL4_AllRights, seL4_ARM_Default_VMAttributes | seL4_ARM_ExecuteNever);
+            if (page_size == AARCH64_LARGE_PAGE_SIZE) {
+                map_addr = large_mapping_region;
+                page_aligned_up_curr_addr = ALIGN_2MB(curr_addr + 1);
+            } else {
+                map_addr = small_mapping_region;
+                // This macro aligns up. We add 1 to curr addr as we want to get
+                // to the the next page boundary if we are currently at the start of a 
+                // page boundary.
+                page_aligned_up_curr_addr = ALIGN_4K(curr_addr + 1);
+            }
+            int err = seL4_ARM_Page_Map(page, VSPACE_CAP, map_addr, seL4_AllRights, seL4_ARM_Default_VMAttributes | seL4_ARM_ExecuteNever);
 
             if (err) {
                 sddf_dprintf("We got an error when mapping page in read_word() at map addr: 0x%lx\n", map_addr);
                 return err;
             }
-
-            // reset the cur addr to the start of the memory region
-            curr_addr = (char *) map_addr;
+            mapped_first_page = true;
         }
-        buff[i] = *curr_addr;
-        curr_addr++;
-        addr++;
+
+        // Get the amount of space remaining in this page.
+        size_t space = page_aligned_up_curr_addr - curr_addr;
+        // We can only read at most the space remaining in the page. We
+        // will read whatever the minimum of these two values are.
+        size_t current_read = MIN(bytes_to_read, space);
+        // Calculate the offset into the map addr page
+        char *ptr_to_page = (char *) (map_addr + (curr_addr & (page_size - 1)));
+        curr_addr += current_read;
+        bytes_to_read = bytes_to_read - current_read;
+
+        memcpy(curr_buff_addr, ptr_to_page, current_read);
     }
     return 0;
 }
 
-
 uint32_t libvspace_read_word(uint16_t client, uintptr_t addr, char *val)
 {
+    if (!libvspace_initialised) {
+        sddf_dprintf("'libvspace_read_word': ERROR libvspace not initialised!\n");
+        return 1;
+    }
     uint64_t page_size = 0;
     seL4_Word page = get_page(client, addr, &page_size);
     if ((page == 0 || page == 0xffffffffffffffff) || page_size == 0) {
@@ -145,6 +160,10 @@ uint32_t libvspace_read_word(uint16_t client, uintptr_t addr, char *val)
 
 uint32_t libvspace_write_word(uint16_t client, uintptr_t addr, seL4_Word val)
 {
+    if (!libvspace_initialised) {
+        sddf_dprintf("'libvspace_write_word': ERROR libvspace not initialised!\n");
+        return 1;
+    }
     uint64_t page_size = 0;
     seL4_Word page = get_page(client, addr, &page_size);
     if ((page == 0 || page == 0xffffffffffffffff) || page_size == 0) {
@@ -215,9 +234,13 @@ uint32_t libvspace_write_page(uint16_t client, uintptr_t addr, char *bytes, size
     return 0;
 }
 
-#define ALIGN_4K(x)     (((uintptr_t)(x) + (uintptr_t)(0xFFF)) & ~(uintptr_t)(0xFFF))
-
 uint32_t libvspace_write_bytes(uint16_t client, uintptr_t start_addr, char *bytes, uint64_t nbytes) {
+    if (!libvspace_initialised) {
+        sddf_dprintf("'libvspace_write_bytes': ERROR libvspace not initialised!\n");
+        return 1;
+    }
+
+    // @kwinter: All this logic assumes we are working with small pages.
     size_t page_size = 0x1000;
     size_t bytes_to_transfer = nbytes;
     size_t page_aligned_start_addr = ALIGN_4K(start_addr);
@@ -257,12 +280,9 @@ uint32_t libvspace_write_bytes(uint16_t client, uintptr_t start_addr, char *byte
     return nbytes - bytes_to_transfer;
 }
 
-void libvspace_set_small_mapping_region(uint64_t vaddr)
+void libvspace_init_mapping_regions(uint64_t small_map_vaddr, uint64_t large_map_vaddr)
 {
-    small_mapping_region = vaddr;
-}
-
-void libvspace_set_large_mapping_region(uint64_t vaddr)
-{
-    large_mapping_region = vaddr;
+    small_mapping_region = small_map_vaddr;
+    large_mapping_region = large_map_vaddr;
+    libvspace_initialised = true;
 }
